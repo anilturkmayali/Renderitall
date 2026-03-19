@@ -1,0 +1,434 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  accounts    Account[]
+  sessions    Session[]
+  memberships OrgMember[]
+  activities  ActivityLog[]
+  comments    Comment[]
+
+  @@map("users")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─── Organisation (Multi-tenant) ─────────────────────────────────────────────
+
+model Organisation {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  logoDark  String?  @map("logo_dark")
+  favicon   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members    OrgMember[]
+  spaces     Space[]
+  media      MediaFile[]
+  activities ActivityLog[]
+
+  @@map("organisations")
+}
+
+model OrgMember {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  userId    String   @map("user_id")
+  role      OrgRole  @default(EDITOR)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  org  Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@map("org_members")
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  EDITOR
+  REVIEWER
+}
+
+// ─── Space ───────────────────────────────────────────────────────────────────
+
+model Space {
+  id          String   @id @default(cuid())
+  orgId       String   @map("org_id")
+  name        String
+  slug        String
+  description String?
+  icon        String?
+  isPublic    Boolean  @default(true) @map("is_public")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Appearance
+  primaryColor   String? @map("primary_color")
+  accentColor    String? @map("accent_color")
+  defaultTheme   Theme   @default(SYSTEM) @map("default_theme")
+  customCss      String? @map("custom_css") @db.Text
+  headerLayout   String? @map("header_layout")
+  footerLinks    Json?   @map("footer_links")
+
+  // Domain
+  customDomain String? @unique @map("custom_domain")
+  sslEnabled   Boolean @default(false) @map("ssl_enabled")
+
+  // SEO
+  seoTitle       String? @map("seo_title")
+  seoDescription String? @map("seo_description")
+  ogImage        String? @map("og_image")
+  robotsIndex    Boolean @default(true) @map("robots_index")
+
+  // Analytics
+  analyticsId String? @map("analytics_id")
+
+  org             Organisation     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  pages           Page[]
+  githubRepos     GitHubRepo[]
+  navItems        NavItem[]
+  snippets        Snippet[]
+  pageTemplates   PageTemplate[]
+  changeRequests  ChangeRequest[]
+  redirects       Redirect[]
+
+  @@unique([orgId, slug])
+  @@map("spaces")
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+// ─── Pages ───────────────────────────────────────────────────────────────────
+
+model Page {
+  id        String     @id @default(cuid())
+  spaceId   String     @map("space_id")
+  parentId  String?    @map("parent_id")
+  title     String
+  slug      String
+  content   String?    @db.Text
+  excerpt   String?
+  status    PageStatus @default(DRAFT)
+  source    PageSource @default(NATIVE)
+  position  Int        @default(0)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  publishedAt DateTime? @map("published_at")
+
+  // GitHub-sourced metadata
+  githubRepoId  String? @map("github_repo_id")
+  githubPath    String? @map("github_path")
+  githubSha     String? @map("github_sha")
+  lastSyncedAt  DateTime? @map("last_synced_at")
+  commitSha     String?   @map("commit_sha")
+  commitAuthor  String?   @map("commit_author")
+  commitDate    DateTime? @map("commit_date")
+  commitMessage String?   @map("commit_message")
+  frontmatter   Json?     @default("{}")
+
+  space      Space       @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  parent     Page?       @relation("PageHierarchy", fields: [parentId], references: [id])
+  children   Page[]      @relation("PageHierarchy")
+  githubRepo GitHubRepo? @relation(fields: [githubRepoId], references: [id])
+  revisions  Revision[]
+  comments   Comment[]
+  changeRequestPages ChangeRequestPage[]
+
+  @@unique([spaceId, slug])
+  @@index([spaceId, position])
+  @@map("pages")
+}
+
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PageSource {
+  NATIVE
+  GITHUB
+}
+
+// ─── Revisions ───────────────────────────────────────────────────────────────
+
+model Revision {
+  id        String   @id @default(cuid())
+  pageId    String   @map("page_id")
+  content   String   @db.Text
+  title     String
+  message   String?
+  authorId  String?  @map("author_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, createdAt])
+  @@map("revisions")
+}
+
+// ─── GitHub Integration ──────────────────────────────────────────────────────
+
+model GitHubRepo {
+  id            String   @id @default(cuid())
+  spaceId       String   @map("space_id")
+  owner         String
+  repo          String
+  branch        String   @default("main")
+  docsPath      String   @default("/") @map("docs_path")
+  installationId Int?    @map("installation_id")
+  accessToken   String?  @map("access_token") @db.Text
+  webhookId     Int?     @map("webhook_id")
+  webhookSecret String?  @map("webhook_secret")
+  lastSyncAt    DateTime? @map("last_sync_at")
+  lastSyncStatus SyncStatus @default(IDLE) @map("last_sync_status")
+  lastSyncError String?    @map("last_sync_error")
+  pageCount     Int        @default(0) @map("page_count")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  space Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  pages Page[]
+
+  @@unique([spaceId, owner, repo])
+  @@map("github_repos")
+}
+
+enum SyncStatus {
+  IDLE
+  SYNCING
+  SUCCESS
+  ERROR
+}
+
+// ─── Navigation ──────────────────────────────────────────────────────────────
+
+model NavItem {
+  id       String  @id @default(cuid())
+  spaceId  String  @map("space_id")
+  parentId String? @map("parent_id")
+  label    String
+  type     NavItemType @default(PAGE)
+  pageId   String?     @map("page_id")
+  url      String?
+  position Int         @default(0)
+
+  space    Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  parent   NavItem? @relation("NavHierarchy", fields: [parentId], references: [id])
+  children NavItem[] @relation("NavHierarchy")
+
+  @@index([spaceId, position])
+  @@map("nav_items")
+}
+
+enum NavItemType {
+  PAGE
+  SECTION
+  LINK
+}
+
+// ─── Snippets (Reusable content blocks) ──────────────────────────────────────
+
+model Snippet {
+  id        String   @id @default(cuid())
+  spaceId   String   @map("space_id")
+  name      String
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, name])
+  @@map("snippets")
+}
+
+// ─── Page Templates ──────────────────────────────────────────────────────────
+
+model PageTemplate {
+  id        String   @id @default(cuid())
+  spaceId   String   @map("space_id")
+  name      String
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@map("page_templates")
+}
+
+// ─── Change Requests ─────────────────────────────────────────────────────────
+
+model ChangeRequest {
+  id          String              @id @default(cuid())
+  spaceId     String              @map("space_id")
+  title       String
+  description String?
+  status      ChangeRequestStatus @default(OPEN)
+  authorId    String              @map("author_id")
+  reviewerId  String?             @map("reviewer_id")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+  publishAt   DateTime?           @map("publish_at")
+  publishedAt DateTime?           @map("published_at")
+
+  space Space               @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  pages ChangeRequestPage[]
+
+  @@map("change_requests")
+}
+
+enum ChangeRequestStatus {
+  OPEN
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
+}
+
+model ChangeRequestPage {
+  id              String @id @default(cuid())
+  changeRequestId String @map("change_request_id")
+  pageId          String @map("page_id")
+  draftContent    String @map("draft_content") @db.Text
+  draftTitle      String @map("draft_title")
+
+  changeRequest ChangeRequest @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  page          Page          @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([changeRequestId, pageId])
+  @@map("change_request_pages")
+}
+
+// ─── Comments ────────────────────────────────────────────────────────────────
+
+model Comment {
+  id        String   @id @default(cuid())
+  pageId    String   @map("page_id")
+  authorId  String   @map("author_id")
+  parentId  String?  @map("parent_id")
+  content   String   @db.Text
+  blockId   String?  @map("block_id")
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  page    Page      @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  author  User      @relation(fields: [authorId], references: [id])
+  parent  Comment?  @relation("CommentThread", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentThread")
+
+  @@map("comments")
+}
+
+// ─── Media Library ───────────────────────────────────────────────────────────
+
+model MediaFile {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  name      String
+  url       String
+  size      Int
+  mimeType  String   @map("mime_type")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("media_files")
+}
+
+// ─── Redirects ───────────────────────────────────────────────────────────────
+
+model Redirect {
+  id      String @id @default(cuid())
+  spaceId String @map("space_id")
+  from    String
+  to      String
+
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@unique([spaceId, from])
+  @@map("redirects")
+}
+
+// ─── Activity Log ────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  orgId     String   @map("org_id")
+  userId    String?  @map("user_id")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  org  Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User?        @relation(fields: [userId], references: [id])
+
+  @@index([orgId, createdAt])
+  @@map("activity_logs")
+}
