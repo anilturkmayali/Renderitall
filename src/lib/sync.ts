@@ -6,6 +6,7 @@ import {
   pathToSlug,
   slugToTitle,
 } from "@/lib/github";
+import { logActivity } from "@/lib/activity";
 import type { Octokit } from "octokit";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -323,6 +324,15 @@ export async function syncRepository(repoId: string): Promise<SyncResult> {
         lastSyncError: null,
         pageCount: pagessynced,
       },
+    });
+
+    // Log activity
+    await logActivity({
+      orgId: repoConfig.space.orgId,
+      action: "synced repository",
+      entity: `${owner}/${repo}`,
+      entityId: repoId,
+      metadata: { pagessynced, navItemsCreated },
     });
 
     return {

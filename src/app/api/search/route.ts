@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
     OR: [
       { title: { contains: q, mode: "insensitive" } },
       { content: { contains: q, mode: "insensitive" } },
+      { slug: { contains: q, mode: "insensitive" } },
     ],
   };
 
@@ -31,30 +32,59 @@ export async function GET(req: NextRequest) {
       title: true,
       slug: true,
       content: true,
-      space: { select: { slug: true } },
+      space: { select: { slug: true, name: true } },
     },
   });
 
-  const results = pages.map((page) => {
-    // Extract excerpt around the match
-    let excerpt = "";
-    if (page.content) {
-      const idx = page.content.toLowerCase().indexOf(q.toLowerCase());
-      if (idx >= 0) {
-        const start = Math.max(0, idx - 60);
-        const end = Math.min(page.content.length, idx + q.length + 60);
-        excerpt = (start > 0 ? "..." : "") + page.content.slice(start, end) + (end < page.content.length ? "..." : "");
-      }
-    }
+  const qLower = q.toLowerCase();
 
-    return {
-      id: page.id,
-      title: page.title,
-      slug: page.slug,
-      excerpt,
-      spaceSlug: page.space.slug,
-    };
-  });
+  const results = pages
+    .map((page) => {
+      // Score: title match > heading match > content match
+      let score = 0;
+      if (page.title.toLowerCase().includes(qLower)) score += 100;
+
+      // Check for heading matches
+      let excerpt = "";
+      if (page.content) {
+        const lines = page.content.split("\n");
+        const headingMatch = lines.find(
+          (line) =>
+            line.startsWith("#") && line.toLowerCase().includes(qLower)
+        );
+
+        if (headingMatch) {
+          score += 50;
+          excerpt = headingMatch.replace(/^#+\s*/, "");
+        } else {
+          // Extract excerpt around the content match
+          const idx = page.content.toLowerCase().indexOf(qLower);
+          if (idx >= 0) {
+            score += 10;
+            const start = Math.max(0, idx - 80);
+            const end = Math.min(page.content.length, idx + q.length + 80);
+            excerpt =
+              (start > 0 ? "..." : "") +
+              page.content
+                .slice(start, end)
+                .replace(/\n/g, " ")
+                .trim() +
+              (end < page.content.length ? "..." : "");
+          }
+        }
+      }
+
+      return {
+        id: page.id,
+        title: page.title,
+        slug: page.slug,
+        excerpt,
+        spaceSlug: page.space.slug,
+        spaceName: page.space.name,
+        score,
+      };
+    })
+    .sort((a, b) => b.score - a.score);
 
   return NextResponse.json({ results });
 }

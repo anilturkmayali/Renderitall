@@ -226,9 +226,10 @@ export default function AdminSpacesPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {spaces.map((space) => (
-            <Card key={space.id} className="group relative">
+            <Card key={space.id} className="group relative hover:border-primary/30 transition-colors">
               <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-3">
+                <Link href={`/admin/spaces/${space.id}`} className="absolute inset-0 z-0" />
+                <div className="flex items-start justify-between mb-3 relative z-10">
                   <div
                     className="flex h-10 w-10 items-center justify-center rounded-lg"
                     style={{

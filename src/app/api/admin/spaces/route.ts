@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const session = await auth();
@@ -69,6 +70,14 @@ export async function POST(req: NextRequest) {
       description: description || null,
       isPublic: isPublic !== false,
     },
+  });
+
+  await logActivity({
+    orgId: targetOrgId,
+    userId: session.user.id,
+    action: "created space",
+    entity: name,
+    entityId: space.id,
   });
 
   return NextResponse.json(space, { status: 201 });

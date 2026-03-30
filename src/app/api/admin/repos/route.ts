@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { syncRepository } from "@/lib/sync";
+import { logActivity } from "@/lib/activity";
 
 export async function GET() {
   const session = await auth();
@@ -52,6 +54,26 @@ export async function POST(req: NextRequest) {
     include: {
       space: { select: { name: true, slug: true } },
     },
+  });
+
+  // Log activity
+  const space = await prisma.space.findUnique({
+    where: { id: spaceId },
+    select: { orgId: true },
+  });
+  if (space) {
+    await logActivity({
+      orgId: space.orgId,
+      userId: session.user.id,
+      action: "connected repository",
+      entity: `${owner}/${repo}`,
+      entityId: githubRepo.id,
+    });
+  }
+
+  // Auto-trigger initial sync in the background
+  syncRepository(githubRepo.id).catch((err) => {
+    console.error(`Auto-sync failed for ${owner}/${repo}:`, err);
   });
 
   return NextResponse.json(githubRepo, { status: 201 });

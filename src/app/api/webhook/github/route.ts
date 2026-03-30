@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { createOctokit, fetchRepoTree, fetchFileContent, pathToSlug, slugToTitle } from "@/lib/github";
+import { syncRepository } from "@/lib/sync";
 import crypto from "crypto";
 
 const WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
@@ -24,6 +24,11 @@ export async function POST(req: NextRequest) {
   const event = req.headers.get("x-github-event");
   const payload = JSON.parse(body);
 
+  // Handle ping event (sent when webhook is first set up)
+  if (event === "ping") {
+    return NextResponse.json({ message: "pong" });
+  }
+
   // Only process push events
   if (event !== "push") {
     return NextResponse.json({ message: "Ignored event", event });
@@ -37,111 +42,21 @@ export async function POST(req: NextRequest) {
   // Find matching repo configurations
   const repoConfigs = await prisma.gitHubRepo.findMany({
     where: { owner, repo, branch },
-    include: { space: true },
   });
 
   if (repoConfigs.length === 0) {
     return NextResponse.json({ message: "No matching repos configured" });
   }
 
-  // Sync each matching repo
+  // Sync each matching repo using the sync engine
+  const results = [];
   for (const repoConfig of repoConfigs) {
-    try {
-      await prisma.gitHubRepo.update({
-        where: { id: repoConfig.id },
-        data: { lastSyncStatus: "SYNCING" },
-      });
-
-      const octokit = createOctokit(repoConfig.accessToken || "");
-      const tree = await fetchRepoTree(
-        octokit,
-        owner,
-        repo,
-        branch,
-        repoConfig.docsPath
-      );
-
-      // Filter markdown files
-      const mdFiles = tree.filter(
-        (item: { path: string; type: string }) =>
-          item.type === "blob" &&
-          (item.path.endsWith(".md") || item.path.endsWith(".mdx"))
-      );
-
-      let position = 0;
-      for (const file of mdFiles) {
-        const fileData = await fetchFileContent(
-          octokit,
-          owner,
-          repo,
-          branch,
-          file.path
-        );
-
-        const slug = pathToSlug(file.path, repoConfig.docsPath);
-        const title = (fileData.frontmatter?.title as string) || slugToTitle(slug);
-        const fm = JSON.parse(JSON.stringify(fileData.frontmatter || {}));
-
-        await prisma.page.upsert({
-          where: {
-            spaceId_slug: {
-              spaceId: repoConfig.spaceId,
-              slug,
-            },
-          },
-          update: {
-            title,
-            content: fileData.content,
-            frontmatter: fm,
-            githubPath: file.path,
-            commitSha: fileData.sha,
-            commitDate: fileData.lastCommitDate
-              ? new Date(fileData.lastCommitDate)
-              : undefined,
-            commitAuthor: fileData.lastCommitAuthor,
-            position,
-            updatedAt: new Date(),
-          },
-          create: {
-            spaceId: repoConfig.spaceId,
-            githubRepoId: repoConfig.id,
-            title,
-            slug,
-            content: fileData.content,
-            frontmatter: fm,
-            githubPath: file.path,
-            source: "GITHUB",
-            status: "PUBLISHED",
-            commitSha: fileData.sha,
-            commitDate: fileData.lastCommitDate
-              ? new Date(fileData.lastCommitDate)
-              : undefined,
-            commitAuthor: fileData.lastCommitAuthor,
-            position,
-          },
-        });
-
-        position++;
-      }
-
-      await prisma.gitHubRepo.update({
-        where: { id: repoConfig.id },
-        data: {
-          lastSyncStatus: "SUCCESS",
-          lastSyncAt: new Date(),
-          lastSyncError: null,
-        },
-      });
-    } catch (error: any) {
-      await prisma.gitHubRepo.update({
-        where: { id: repoConfig.id },
-        data: {
-          lastSyncStatus: "ERROR",
-          lastSyncError: error.message || "Unknown error",
-        },
-      });
-    }
+    const result = await syncRepository(repoConfig.id);
+    results.push({
+      repoId: repoConfig.id,
+      ...result,
+    });
   }
 
-  return NextResponse.json({ message: "Sync completed" });
+  return NextResponse.json({ message: "Sync completed", results });
 }
