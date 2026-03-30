@@ -167,6 +167,11 @@ export async function syncRepository(repoId: string): Promise<SyncResult> {
     return { success: false, pagessynced: 0, navItemsCreated: 0, error: "Repository not found" } as any;
   }
 
+  // Prevent concurrent syncs
+  if (repoConfig.lastSyncStatus === "SYNCING") {
+    return { success: false, pagessynced: 0, navItemsCreated: 0, error: "Sync already in progress" } as any;
+  }
+
   // Mark as syncing
   await prisma.gitHubRepo.update({
     where: { id: repoId },
