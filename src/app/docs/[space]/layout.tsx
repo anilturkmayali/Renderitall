@@ -3,7 +3,10 @@ import { BookOpen } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchCommand } from "@/components/search-command";
+import { unstable_cache } from "next/cache";
 import type { Metadata } from "next";
+
+export const revalidate = 120;
 
 interface LayoutProps {
   children: React.ReactNode;

@@ -8,7 +8,11 @@ import { TableOfContents } from "@/components/reader/table-of-contents";
 import { DocSidebar } from "@/components/reader/doc-sidebar";
 import { MobileSidebar } from "@/components/reader/mobile-sidebar";
 import { formatDistanceToNow } from "date-fns";
+import { unstable_cache } from "next/cache";
 import type { Metadata } from "next";
+
+// Revalidate pages every 60 seconds (ISR)
+export const revalidate = 60;
 
 interface PageProps {
   params: Promise<{ space: string; slug: string[] }>;
@@ -42,41 +46,57 @@ export async function generateMetadata({
   };
 }
 
-async function getSpace(slug: string) {
-  return prisma.space.findFirst({
-    where: { slug, isPublic: true },
-    include: { org: { select: { name: true, logo: true } } },
-  });
-}
+const getSpace = unstable_cache(
+  async (slug: string) => {
+    return prisma.space.findFirst({
+      where: { slug, isPublic: true },
+      include: { org: { select: { name: true, logo: true } } },
+    });
+  },
+  ["space"],
+  { revalidate: 120 }
+);
 
-async function getPage(spaceId: string, slug: string) {
-  return prisma.page.findFirst({
-    where: {
-      spaceId,
-      slug,
-      status: "PUBLISHED",
-    },
-    include: {
-      githubRepo: { select: { owner: true, repo: true, branch: true } },
-    },
-  });
-}
+const getPage = unstable_cache(
+  async (spaceId: string, slug: string) => {
+    return prisma.page.findFirst({
+      where: { spaceId, slug, status: "PUBLISHED" },
+      include: {
+        githubRepo: { select: { owner: true, repo: true, branch: true } },
+      },
+    });
+  },
+  ["page"],
+  { revalidate: 60 }
+);
 
-async function getAdjacentPages(spaceId: string, currentPosition: number) {
-  const [prev, next] = await Promise.all([
-    prisma.page.findFirst({
-      where: { spaceId, status: "PUBLISHED", position: { lt: currentPosition } },
-      orderBy: { position: "desc" },
-      select: { title: true, slug: true },
-    }),
-    prisma.page.findFirst({
-      where: { spaceId, status: "PUBLISHED", position: { gt: currentPosition } },
-      orderBy: { position: "asc" },
-      select: { title: true, slug: true },
-    }),
-  ]);
-  return { prev, next };
-}
+const getCachedSidebar = unstable_cache(
+  async (spaceId: string) => {
+    return getSidebarSections(spaceId);
+  },
+  ["sidebar"],
+  { revalidate: 120 }
+);
+
+const getAdjacentPages = unstable_cache(
+  async (spaceId: string, currentPosition: number) => {
+    const [prev, next] = await Promise.all([
+      prisma.page.findFirst({
+        where: { spaceId, status: "PUBLISHED", position: { lt: currentPosition } },
+        orderBy: { position: "desc" },
+        select: { title: true, slug: true },
+      }),
+      prisma.page.findFirst({
+        where: { spaceId, status: "PUBLISHED", position: { gt: currentPosition } },
+        orderBy: { position: "asc" },
+        select: { title: true, slug: true },
+      }),
+    ]);
+    return { prev, next };
+  },
+  ["adjacent"],
+  { revalidate: 60 }
+);
 
 export default async function DocPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
@@ -88,7 +108,7 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
   if (!page) notFound();
 
   const [sections, adjacent] = await Promise.all([
-    getSidebarSections(space.id),
+    getCachedSidebar(space.id),
     getAdjacentPages(space.id, page.position),
   ]);
 

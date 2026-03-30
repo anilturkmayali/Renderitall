@@ -5,6 +5,15 @@ import { getSidebarSections } from "@/lib/sidebar";
 import { BookOpen, FileText, ChevronRight } from "lucide-react";
 import { DocSidebar } from "@/components/reader/doc-sidebar";
 import { MobileSidebar } from "@/components/reader/mobile-sidebar";
+import { unstable_cache } from "next/cache";
+
+export const revalidate = 60;
+
+const getCachedSidebar = unstable_cache(
+  async (spaceId: string) => getSidebarSections(spaceId),
+  ["sidebar-home"],
+  { revalidate: 120 }
+);
 
 interface PageProps {
   params: Promise<{ space: string }>;
@@ -22,7 +31,7 @@ export default async function DocsHomePage({
 
   if (!space) notFound();
 
-  const sections = await getSidebarSections(space.id);
+  const sections = await getCachedSidebar(space.id);
 
   // Get first page — if it has content, render it as the landing page (GitBook behavior)
   const firstPage = await prisma.page.findFirst({
