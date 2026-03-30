@@ -2,132 +2,68 @@
 
 import { useState, useEffect } from "react";
 import {
-  Palette,
-  Monitor,
-  Layout,
-  Save,
+  Github,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
   Loader2,
-  Eye,
-  Check,
+  LogOut,
+  RefreshCw,
+  Shield,
+  Building2,
+  User,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface Space {
-  id: string;
-  name: string;
-  slug: string;
-  primaryColor: string | null;
-  accentColor: string | null;
-  defaultTheme: string;
-  headerLayout: string | null;
-  customCss: string | null;
+interface GitHubAccount {
+  connected: boolean;
+  username?: string;
+  name?: string;
+  avatarUrl?: string;
+  email?: string;
+  organizations?: { login: string; avatar_url: string; description: string | null }[];
+  scopes?: string[];
+  hasOrgAccess?: boolean;
+  hasRepoAccess?: boolean;
+  needsReconnect?: boolean;
+  tokenExpired?: boolean;
+  error?: string;
 }
 
-const TEMPLATES = [
-  {
-    id: "default",
-    name: "Classic Docs",
-    description: "Clean sidebar layout inspired by GitBook. Left sidebar, content, right TOC.",
-    preview: "bg-white dark:bg-zinc-900",
-    headerLayout: "default",
-    features: ["Left sidebar navigation", "Right table of contents", "Breadcrumbs", "Previous/Next"],
-  },
-  {
-    id: "modern",
-    name: "Modern",
-    description: "Full-width hero sections, floating sidebar. Inspired by Stripe and Vercel docs.",
-    preview: "bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-zinc-900 dark:to-zinc-800",
-    headerLayout: "modern",
-    features: ["Floating sidebar", "Hero banners per section", "Tab navigation", "Card-based sections"],
-  },
-  {
-    id: "minimal",
-    name: "Minimal",
-    description: "Content-focused with minimal chrome. Centered content, collapsible sidebar.",
-    preview: "bg-stone-50 dark:bg-stone-950",
-    headerLayout: "minimal",
-    features: ["Centered content", "Collapsible sidebar", "Typography focused", "Distraction-free reading"],
-  },
-];
-
-const COLOR_PRESETS = [
-  { name: "Blue", primary: "#3b82f6", accent: "#6366f1" },
-  { name: "Green", primary: "#10b981", accent: "#14b8a6" },
-  { name: "Purple", primary: "#8b5cf6", accent: "#a855f7" },
-  { name: "Orange", primary: "#f97316", accent: "#ef4444" },
-  { name: "Teal", primary: "#0d9488", accent: "#06b6d4" },
-  { name: "Rose", primary: "#f43f5e", accent: "#ec4899" },
-];
-
-export default function AdminSettingsPage() {
-  const [spaces, setSpaces] = useState<Space[]>([]);
-  const [selectedSpaceId, setSelectedSpaceId] = useState("");
-  const [selectedSpace, setSelectedSpace] = useState<Space | null>(null);
+export default function SettingsPage() {
+  const [account, setAccount] = useState<GitHubAccount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  const [form, setForm] = useState({
-    primaryColor: "",
-    accentColor: "",
-    defaultTheme: "SYSTEM",
-    headerLayout: "default",
-    customCss: "",
-  });
+  const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => {
-    fetchSpaces();
+    fetchAccount();
   }, []);
 
-  useEffect(() => {
-    if (selectedSpaceId) {
-      fetchSpace();
-    }
-  }, [selectedSpaceId]);
-
-  async function fetchSpaces() {
-    const res = await fetch("/api/admin/spaces");
-    if (res.ok) {
-      const data = await res.json();
-      setSpaces(data);
-      if (data.length > 0) {
-        setSelectedSpaceId(data[0].id);
-      }
+  async function fetchAccount() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/github/account");
+      if (res.ok) setAccount(await res.json());
+    } catch {
+      setAccount({ connected: false });
     }
     setLoading(false);
   }
 
-  async function fetchSpace() {
-    const res = await fetch(`/api/admin/spaces/${selectedSpaceId}`);
-    if (res.ok) {
-      const space = await res.json();
-      setSelectedSpace(space);
-      setForm({
-        primaryColor: space.primaryColor || "#3b82f6",
-        accentColor: space.accentColor || "#6366f1",
-        defaultTheme: space.defaultTheme || "SYSTEM",
-        headerLayout: space.headerLayout || "default",
-        customCss: space.customCss || "",
-      });
-    }
+  async function handleDisconnect() {
+    if (!confirm("Disconnect your GitHub account? You won't be able to sync repos until you reconnect.")) return;
+    setDisconnecting(true);
+    await fetch("/api/admin/github/account", { method: "DELETE" });
+    setAccount({ connected: false });
+    setDisconnecting(false);
   }
 
-  async function handleSave() {
-    setSaving(true);
-    const res = await fetch(`/api/admin/spaces/${selectedSpaceId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-
-    if (res.ok) {
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    }
-    setSaving(false);
+  function handleReconnect() {
+    // Force re-authentication by redirecting to the GitHub OAuth flow
+    window.location.href = "/api/auth/signin/github?callbackUrl=/admin/settings";
   }
 
   if (loading) {
@@ -139,244 +75,243 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Appearance & Settings
-          </h1>
-          <p className="text-muted-foreground">
-            Customize the look and feel of your documentation site.
-          </p>
-        </div>
-        <Button onClick={handleSave} disabled={saving}>
-          {saved ? (
-            <>
-              <Check className="mr-2 h-4 w-4" />
-              Saved!
-            </>
-          ) : saving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Save Changes
-            </>
-          )}
-        </Button>
+    <div className="space-y-6 max-w-3xl">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <p className="text-muted-foreground">
+          Manage your account connections and platform settings.
+        </p>
       </div>
 
-      {/* Space selector */}
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium">Space:</label>
-        <select
-          className="flex h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          value={selectedSpaceId}
-          onChange={(e) => setSelectedSpaceId(e.target.value)}
-        >
-          {spaces.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Template Selection */}
+      {/* GitHub Connection */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Layout className="h-5 w-5" />
-            Template
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {TEMPLATES.map((template) => (
-              <button
-                key={template.id}
-                onClick={() =>
-                  setForm({ ...form, headerLayout: template.id })
-                }
-                className={`group relative rounded-xl border-2 p-4 text-left transition-all ${
-                  form.headerLayout === template.id
-                    ? "border-primary ring-2 ring-primary/20"
-                    : "border-border hover:border-primary/50"
-                }`}
-              >
-                {form.headerLayout === template.id && (
-                  <div className="absolute -top-2 -right-2 rounded-full bg-primary p-1">
-                    <Check className="h-3 w-3 text-primary-foreground" />
-                  </div>
-                )}
-                <div
-                  className={`h-24 rounded-lg mb-3 ${template.preview} border`}
-                >
-                  {/* Mini preview layout */}
-                  <div className="h-full flex p-2 gap-1">
-                    <div className="w-1/4 bg-current opacity-5 rounded" />
-                    <div className="flex-1 flex flex-col gap-1">
-                      <div className="h-2 bg-current opacity-10 rounded w-3/4" />
-                      <div className="h-1.5 bg-current opacity-5 rounded w-full" />
-                      <div className="h-1.5 bg-current opacity-5 rounded w-5/6" />
-                      <div className="h-1.5 bg-current opacity-5 rounded w-full" />
-                    </div>
-                    <div className="w-1/6 bg-current opacity-5 rounded hidden sm:block" />
-                  </div>
-                </div>
-                <h3 className="font-semibold text-sm">{template.name}</h3>
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                  {template.description}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {template.features.slice(0, 2).map((f) => (
-                    <Badge
-                      key={f}
-                      variant="secondary"
-                      className="text-[10px] px-1.5 py-0"
-                    >
-                      {f}
-                    </Badge>
-                  ))}
-                </div>
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Color Theme */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-5 w-5" />
-            Colors
+            <Github className="h-5 w-5" />
+            GitHub Connection
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-3">
-            {COLOR_PRESETS.map((preset) => (
-              <button
-                key={preset.name}
-                onClick={() =>
-                  setForm({
-                    ...form,
-                    primaryColor: preset.primary,
-                    accentColor: preset.accent,
-                  })
-                }
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${
-                  form.primaryColor === preset.primary
-                    ? "border-primary ring-1 ring-primary/20"
-                    : "hover:border-primary/50"
-                }`}
-              >
-                <div
-                  className="h-4 w-4 rounded-full"
-                  style={{ backgroundColor: preset.primary }}
-                />
-                <div
-                  className="h-4 w-4 rounded-full -ml-2"
-                  style={{ backgroundColor: preset.accent }}
-                />
-                <span>{preset.name}</span>
-              </button>
-            ))}
-          </div>
+          {!account?.connected ? (
+            /* Not connected */
+            <div className="flex items-start gap-4 p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
+              <XCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-sm">GitHub not connected</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Connect your GitHub account to browse and sync repositories.
+                </p>
+                <Button size="sm" className="mt-3" onClick={handleReconnect}>
+                  <Github className="mr-1.5 h-3.5 w-3.5" />
+                  Connect GitHub
+                </Button>
+              </div>
+            </div>
+          ) : account.tokenExpired || account.error ? (
+            /* Token expired */
+            <div className="flex items-start gap-4 p-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20">
+              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-sm">Connection expired</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Your GitHub token has expired. Please reconnect to continue syncing.
+                </p>
+                {account.error && (
+                  <p className="text-xs text-red-500 mt-1">{account.error}</p>
+                )}
+                <Button size="sm" className="mt-3" onClick={handleReconnect}>
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                  Reconnect
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* Connected */
+            <>
+              {/* Account info */}
+              <div className="flex items-center gap-4 p-4 rounded-lg border bg-muted/30">
+                {account.avatarUrl ? (
+                  <img
+                    src={account.avatarUrl}
+                    alt={account.username || ""}
+                    className="h-12 w-12 rounded-full border"
+                  />
+                ) : (
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                    <User className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{account.name || account.username}</span>
+                    <Badge variant="success" className="text-[10px]">
+                      <CheckCircle2 className="mr-1 h-3 w-3" />
+                      Connected
+                    </Badge>
+                  </div>
+                  <a
+                    href={`https://github.com/${account.username}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
+                  >
+                    @{account.username}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={handleReconnect}>
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    Reconnect
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDisconnect}
+                    disabled={disconnecting}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <LogOut className="mr-1.5 h-3.5 w-3.5" />
+                    Disconnect
+                  </Button>
+                </div>
+              </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">
-                Primary Color
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="color"
-                  value={form.primaryColor}
-                  onChange={(e) =>
-                    setForm({ ...form, primaryColor: e.target.value })
-                  }
-                  className="h-9 w-12 rounded border cursor-pointer"
-                />
-                <Input
-                  value={form.primaryColor}
-                  onChange={(e) =>
-                    setForm({ ...form, primaryColor: e.target.value })
-                  }
-                  placeholder="#3b82f6"
-                />
+              {/* Permissions */}
+              <div>
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  Permissions
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  <PermissionBadge
+                    label="Repository access"
+                    granted={account.hasRepoAccess}
+                  />
+                  <PermissionBadge
+                    label="Organization access"
+                    granted={account.hasOrgAccess}
+                  />
+                  {account.scopes?.map((scope) => (
+                    <Badge key={scope} variant="outline" className="text-xs">
+                      {scope}
+                    </Badge>
+                  ))}
+                </div>
+                {account.needsReconnect && (
+                  <div className="flex items-start gap-2 mt-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium">Missing permissions</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Your current connection is missing some permissions needed to access
+                        organization repos. Click &quot;Reconnect&quot; to grant the updated permissions.
+                      </p>
+                      <Button size="sm" className="mt-2" onClick={handleReconnect}>
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                        Reconnect with updated permissions
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">
-                Accent Color
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="color"
-                  value={form.accentColor}
-                  onChange={(e) =>
-                    setForm({ ...form, accentColor: e.target.value })
-                  }
-                  className="h-9 w-12 rounded border cursor-pointer"
-                />
-                <Input
-                  value={form.accentColor}
-                  onChange={(e) =>
-                    setForm({ ...form, accentColor: e.target.value })
-                  }
-                  placeholder="#6366f1"
-                />
+
+              {/* Organizations */}
+              <div>
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  Organizations ({account.organizations?.length || 0})
+                </h3>
+                {!account.organizations || account.organizations.length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-3 rounded-lg border bg-muted/30">
+                    <p>No organizations found.</p>
+                    <p className="text-xs mt-1">
+                      If you belong to organizations but don&apos;t see them here, click &quot;Reconnect&quot;
+                      above. You may need to grant access to each organization during the GitHub
+                      authorization step — look for the &quot;Grant&quot; button next to each org.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    {account.organizations.map((org) => (
+                      <div
+                        key={org.login}
+                        className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/30 transition-colors"
+                      >
+                        <img
+                          src={org.avatar_url}
+                          alt={org.login}
+                          className="h-8 w-8 rounded-md"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <a
+                            href={`https://github.com/${org.login}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-sm hover:text-primary flex items-center gap-1"
+                          >
+                            {org.login}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                          {org.description && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              {org.description}
+                            </p>
+                          )}
+                        </div>
+                        <Badge variant="success" className="text-[10px] shrink-0">
+                          Access granted
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      {/* Default Theme */}
+      {/* Help */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Monitor className="h-5 w-5" />
-            Default Theme
-          </CardTitle>
+          <CardTitle className="text-base">Troubleshooting</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-3">
-            {["LIGHT", "DARK", "SYSTEM"].map((theme) => (
-              <button
-                key={theme}
-                onClick={() => setForm({ ...form, defaultTheme: theme })}
-                className={`rounded-lg border px-4 py-2 text-sm transition-all ${
-                  form.defaultTheme === theme
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "hover:bg-muted"
-                }`}
-              >
-                {theme === "LIGHT" ? "Light" : theme === "DARK" ? "Dark" : "System"}
-              </button>
-            ))}
+        <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <div>
+            <p className="font-medium text-foreground">I don&apos;t see my organization&apos;s repos</p>
+            <p className="text-xs mt-1">
+              1. Click &quot;Reconnect&quot; above.<br />
+              2. On the GitHub authorization page, find your organization in the list.<br />
+              3. Click &quot;Grant&quot; next to it (you may need org admin approval).<br />
+              4. Complete the authorization.
+            </p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Custom CSS */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Custom CSS</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <textarea
-            className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm font-mono shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            placeholder={`/* Custom styles for your docs */\n.prose h1 {\n  color: var(--primary);\n}`}
-            value={form.customCss}
-            onChange={(e) => setForm({ ...form, customCss: e.target.value })}
-          />
+          <div>
+            <p className="font-medium text-foreground">Sync is failing</p>
+            <p className="text-xs mt-1">
+              Try clicking &quot;Reconnect&quot; to refresh your GitHub token. If the repo is private,
+              make sure you have access to it with the connected account.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function PermissionBadge({ label, granted }: { label: string; granted?: boolean }) {
+  return (
+    <Badge
+      variant={granted ? "success" : "destructive"}
+      className="text-xs gap-1"
+    >
+      {granted ? (
+        <CheckCircle2 className="h-3 w-3" />
+      ) : (
+        <XCircle className="h-3 w-3" />
+      )}
+      {label}
+    </Badge>
   );
 }

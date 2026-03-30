@@ -181,16 +181,29 @@ function ConnectModal({ spaces, onClose, onDone }: { spaces: Space[]; onClose: (
   const [error, setError] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  useEffect(() => { fetchGH(""); }, []);
+  // Org tabs
+  const [orgs, setOrgs] = useState<{ login: string }[]>([]);
+  const [selectedOrg, setSelectedOrg] = useState(""); // "" = all
+
+  useEffect(() => {
+    fetchGH("", "");
+    // Fetch orgs for tabs
+    fetch("/api/admin/github/account").then((r) => r.json()).then((data) => {
+      if (data.organizations) setOrgs(data.organizations);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => fetchGH(ghSearch), 300);
+    timer.current = setTimeout(() => fetchGH(ghSearch, selectedOrg), 300);
     return () => clearTimeout(timer.current);
-  }, [ghSearch]);
+  }, [ghSearch, selectedOrg]);
 
-  async function fetchGH(q: string) {
+  async function fetchGH(q: string, org: string) {
     setGhLoading(true);
-    const p = new URLSearchParams(); if (q) p.set("q", q);
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (org) p.set("org", org);
     const res = await fetch(`/api/admin/github/repos?${p}`);
     if (res.ok) setGhRepos(await res.json());
     setGhLoading(false);
@@ -209,16 +222,35 @@ function ConnectModal({ spaces, onClose, onDone }: { spaces: Space[]; onClose: (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-2xl rounded-xl border bg-background p-6 shadow-2xl mx-4 max-h-[80vh] flex flex-col">
+      <div className="w-full max-w-2xl rounded-xl border bg-background p-6 shadow-2xl mx-4 max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold">Connect Repository</h2>
           <button onClick={onClose}><X className="h-4 w-4" /></button>
         </div>
         {!selected ? (
           <>
-            <div className="relative mb-3"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search repositories..." value={ghSearch} onChange={(e) => setGhSearch(e.target.value)} className="pl-10" autoFocus /></div>
+            {/* Org tabs */}
+            {orgs.length > 0 && (
+              <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
+                <button onClick={() => setSelectedOrg("")} className={`rounded-md border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all ${selectedOrg === "" ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}>
+                  All Repos
+                </button>
+                {orgs.map((org) => (
+                  <button key={org.login} onClick={() => setSelectedOrg(org.login)} className={`rounded-md border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all ${selectedOrg === org.login ? "border-primary bg-primary/10 text-primary" : "hover:bg-muted"}`}>
+                    {org.login}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="relative mb-3"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder={selectedOrg ? `Search ${selectedOrg} repos...` : "Search all repositories..."} value={ghSearch} onChange={(e) => setGhSearch(e.target.value)} className="pl-10" autoFocus /></div>
             <div className="flex-1 overflow-y-auto border rounded-lg min-h-0">
-              {ghLoading ? <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : ghRepos.length === 0 ? <div className="py-8 text-center text-sm text-muted-foreground">No repos found.</div> : (
+              {ghLoading ? <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : ghRepos.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  <p>No repos found.</p>
+                  {!orgs.length && <p className="text-xs mt-2">If you don&apos;t see organization repos, go to <strong>Settings</strong> and click &quot;Reconnect&quot; to grant organization access.</p>}
+                </div>
+              ) : (
                 <div className="divide-y">{ghRepos.map((r) => (
                   <button key={r.id} onClick={() => { setSelected(r); setBranch(r.defaultBranch); }} className="flex items-start gap-3 w-full px-4 py-3 text-left hover:bg-muted/50">
                     <Github className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" />
