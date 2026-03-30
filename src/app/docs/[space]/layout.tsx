@@ -12,24 +12,31 @@ interface LayoutProps {
   params: Promise<{ space: string }>;
 }
 
+const getSpaceData = unstable_cache(
+  async (slug: string) => {
+    return prisma.space.findFirst({
+      where: { slug, isPublic: true },
+      include: {
+        org: { select: { name: true, logo: true, logoDark: true } },
+        navItems: {
+          where: { parentId: null, type: "LINK" },
+          orderBy: { position: "asc" },
+          select: { label: true, url: true },
+        },
+      },
+    });
+  },
+  ["space-layout"],
+  { revalidate: 120 }
+);
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ space: string }>;
 }): Promise<Metadata> {
   const { space: spaceSlug } = await params;
-  const space = await prisma.space.findFirst({
-    where: { slug: spaceSlug, isPublic: true },
-    select: {
-      name: true,
-      description: true,
-      seoTitle: true,
-      seoDescription: true,
-      ogImage: true,
-      primaryColor: true,
-    },
-  });
-
+  const space = await getSpaceData(spaceSlug);
   if (!space) return {};
 
   const title = space.seoTitle || space.name;
@@ -38,12 +45,7 @@ export async function generateMetadata({
   return {
     title: { default: title, template: `%s | ${space.name}` },
     description,
-    openGraph: {
-      title,
-      description,
-      type: "website",
-      ...(space.ogImage && { images: [space.ogImage] }),
-    },
+    openGraph: { title, description, type: "website", ...(space.ogImage && { images: [space.ogImage] }) },
     twitter: { card: "summary_large_image", title, description },
     themeColor: space.primaryColor || undefined,
   };
@@ -51,80 +53,85 @@ export async function generateMetadata({
 
 export default async function DocsLayout({ children, params }: LayoutProps) {
   const { space: spaceSlug } = await params;
-
-  const space = await prisma.space.findFirst({
-    where: { slug: spaceSlug, isPublic: true },
-    include: { org: { select: { name: true, logo: true, logoDark: true } } },
-  });
+  const space = await getSpaceData(spaceSlug);
 
   const spaceName = space?.name || spaceSlug;
   const primaryColor = space?.primaryColor || "#3b82f6";
   const accentColor = space?.accentColor;
   const logo = space?.org?.logo;
-  const headerLayout = space?.headerLayout || "default";
+  const template = space?.headerLayout || "default";
 
-  // Determine header style based on accentColor
-  // If accentColor is set, use it as header background (colored header)
-  // Otherwise use a subtle tinted header
+  // Top nav links (LINK type nav items at root level)
+  const topLinks = space?.navItems || [];
+
   const useColoredHeader = !!accentColor;
-  const headerBg = useColoredHeader ? accentColor : undefined;
-  const headerTextLight = useColoredHeader; // white text on colored bg
 
   return (
     <div className="min-h-screen bg-background">
-      {/* CSS custom properties for theming */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            :root {
-              --site-primary: ${primaryColor};
-              --site-accent: ${accentColor || primaryColor};
-            }
-            .site-header { ${headerBg ? `background-color: ${headerBg};` : ""} }
-            .site-header a, .site-header span, .site-header button { ${headerTextLight ? "color: white !important;" : ""} }
-            .site-header .search-trigger { ${headerTextLight ? "background: rgba(255,255,255,0.15) !important; border-color: rgba(255,255,255,0.2) !important; color: rgba(255,255,255,0.8) !important;" : ""} }
-            .site-header .search-trigger:hover { ${headerTextLight ? "background: rgba(255,255,255,0.25) !important;" : ""} }
-            .site-sidebar .sidebar-active { background-color: ${primaryColor}15; color: ${primaryColor}; border-left-color: ${primaryColor}; }
-            .prose a { color: ${primaryColor}; }
-            .prose a:hover { color: ${primaryColor}; opacity: 0.8; }
-            ${space?.customCss || ""}
-          `,
-        }}
-      />
+      {/* Theme CSS */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        :root { --site-primary: ${primaryColor}; --site-accent: ${accentColor || primaryColor}; }
+        .site-link { color: var(--site-primary); }
+        .site-link:hover { opacity: 0.8; }
+        .sidebar-item-active { background-color: ${primaryColor}12; color: ${primaryColor}; border-left: 2px solid ${primaryColor}; }
+        .prose a { color: var(--site-primary); }
+        ${space?.customCss || ""}
+      `}} />
 
-      {/* Top navigation */}
-      <header className={`site-header sticky top-0 z-40 border-b ${!useColoredHeader ? "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60" : ""}`}>
+      {/* Header */}
+      <header
+        className={`sticky top-0 z-40 border-b ${useColoredHeader ? "" : "bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"}`}
+        style={useColoredHeader ? { backgroundColor: accentColor! } : undefined}
+      >
         <div className="flex h-14 items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/docs/${spaceSlug}`}
-              className="flex items-center gap-2.5"
-            >
+          <div className="flex items-center gap-4">
+            <Link href={`/docs/${spaceSlug}`} className="flex items-center gap-2.5 shrink-0">
               {logo ? (
-                <img
-                  src={logo}
-                  alt={spaceName}
-                  className="h-7 w-auto max-w-[140px] object-contain"
-                />
+                <img src={logo} alt={spaceName} className="h-7 w-auto max-w-[140px] object-contain" />
               ) : (
-                <div
-                  className="h-7 w-7 rounded-md flex items-center justify-center text-white font-bold text-xs"
-                  style={{ backgroundColor: primaryColor }}
-                >
+                <div className="h-7 w-7 rounded-md flex items-center justify-center text-white font-bold text-xs" style={{ backgroundColor: primaryColor }}>
                   {spaceName.charAt(0).toUpperCase()}
                 </div>
               )}
-              <span className="font-semibold text-sm">{spaceName}</span>
+              <span className={`font-semibold text-sm ${useColoredHeader ? "text-white" : ""}`}>
+                {spaceName}
+              </span>
             </Link>
+
+            {/* Top nav links — shown on Modern template or when links exist */}
+            {(template === "modern" || topLinks.length > 0) && topLinks.length > 0 && (
+              <nav className="hidden md:flex items-center gap-1 ml-4">
+                {topLinks.map((link, i) => (
+                  <a
+                    key={i}
+                    href={link.url || "#"}
+                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      useColoredHeader
+                        ? "text-white/80 hover:text-white hover:bg-white/10"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                    target={link.url?.startsWith("http") ? "_blank" : undefined}
+                    rel={link.url?.startsWith("http") ? "noopener noreferrer" : undefined}
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </nav>
+            )}
           </div>
+
           <div className="flex items-center gap-3">
-            <SearchCommand spaceSlug={spaceSlug} />
-            <ThemeToggle />
+            <div className={useColoredHeader ? "[&_button]:text-white/80 [&_button]:border-white/20 [&_button]:bg-white/10 [&_button:hover]:bg-white/20" : ""}>
+              <SearchCommand spaceSlug={spaceSlug} />
+            </div>
+            <div className={useColoredHeader ? "[&_button]:text-white/80" : ""}>
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Content area */}
+      {/* Content — layout varies by template */}
       <div className="flex">{children}</div>
     </div>
   );

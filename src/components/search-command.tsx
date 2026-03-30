@@ -171,12 +171,12 @@ export function SearchCommand({ spaceSlug }: SearchCommandProps) {
                         onClick={() => handleSelect(result)}
                         className={`flex items-start gap-3 w-full px-4 py-2.5 text-left text-sm transition-colors ${
                           i === selectedIndex
-                            ? "bg-primary/10 text-primary"
+                            ? "bg-blue-50 dark:bg-blue-950/30"
                             : "hover:bg-muted"
                         }`}
                       >
                         <FileText className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0">
+                        <div className="min-w-0 text-foreground">
                           <div className="font-medium truncate">
                             {result.title}
                           </div>

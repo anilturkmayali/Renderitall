@@ -16,7 +16,7 @@ export async function GET(
   const space = await prisma.space.findUnique({
     where: { id },
     include: {
-      org: { select: { name: true } },
+      org: { select: { name: true, logo: true, logoDark: true } },
       githubRepos: true,
       _count: { select: { pages: true, githubRepos: true, navItems: true } },
     },
