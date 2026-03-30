@@ -5,10 +5,40 @@ import { prisma } from "@/lib/prisma";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { TableOfContents } from "@/components/reader/table-of-contents";
 import { DocSidebar, type SidebarSection } from "@/components/reader/doc-sidebar";
+import { MobileSidebar } from "@/components/reader/mobile-sidebar";
 import { formatDistanceToNow } from "date-fns";
+import type { Metadata } from "next";
 
 interface PageProps {
   params: Promise<{ space: string; slug: string[] }>;
+}
+
+export async function generateMetadata({
+  params: paramsPromise,
+}: PageProps): Promise<Metadata> {
+  const params = await paramsPromise;
+  const space = await prisma.space.findFirst({
+    where: { slug: params.space, isPublic: true },
+    select: { id: true, name: true },
+  });
+  if (!space) return {};
+
+  const slug = params.slug.join("/");
+  const page = await prisma.page.findFirst({
+    where: { spaceId: space.id, slug, status: "PUBLISHED" },
+    select: { title: true, excerpt: true },
+  });
+  if (!page) return {};
+
+  return {
+    title: page.title,
+    description: page.excerpt || `${page.title} — ${space.name}`,
+    openGraph: {
+      title: page.title,
+      description: page.excerpt || `${page.title} — ${space.name}`,
+      type: "article",
+    },
+  };
 }
 
 async function getSpace(slug: string) {
@@ -200,7 +230,12 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
 
   return (
     <>
-      {/* Sidebar */}
+      {/* Mobile sidebar */}
+      <div className="fixed bottom-4 left-4 z-30 md:hidden">
+        <MobileSidebar spaceSlug={params.space} sections={sections} />
+      </div>
+
+      {/* Desktop Sidebar */}
       <aside
         className={`hidden shrink-0 border-r bg-sidebar md:block ${
           isMinimal ? "w-56" : "w-64"
@@ -246,6 +281,13 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
           >
             {page.title}
           </h1>
+
+          {/* Page description/excerpt */}
+          {page.excerpt && (
+            <p className="text-lg text-muted-foreground mb-4">
+              {page.excerpt}
+            </p>
+          )}
 
           {/* Metadata bar */}
           <div className="mb-8 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">

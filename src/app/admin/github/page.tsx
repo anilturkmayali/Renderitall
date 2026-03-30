@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Github,
   RefreshCw,
@@ -14,13 +14,16 @@ import {
   FolderGit2,
   GitBranch,
   FolderOpen,
+  Search,
+  Lock,
+  Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
-interface Repo {
+interface ConnectedRepo {
   id: string;
   owner: string;
   repo: string;
@@ -32,6 +35,18 @@ interface Repo {
   pageCount: number;
   space: { name: string; slug: string };
   _count: { pages: number };
+}
+
+interface GitHubRepoOption {
+  id: number;
+  fullName: string;
+  owner: string;
+  name: string;
+  description: string | null;
+  defaultBranch: string;
+  isPrivate: boolean;
+  language: string | null;
+  stargazersCount: number;
 }
 
 interface Space {
@@ -48,16 +63,24 @@ const statusConfig = {
 };
 
 export default function AdminGitHubPage() {
-  const [repos, setRepos] = useState<Repo[]>([]);
+  const [repos, setRepos] = useState<ConnectedRepo[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [syncing, setSyncing] = useState<Set<string>>(new Set());
 
+  // Repo picker state
+  const [ghRepos, setGhRepos] = useState<GitHubRepoOption[]>([]);
+  const [ghSearch, setGhSearch] = useState("");
+  const [ghLoading, setGhLoading] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState<GitHubRepoOption | null>(
+    null
+  );
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
   // Form state
   const [form, setForm] = useState({
-    repoUrl: "",
-    branch: "main",
+    branch: "",
     docsPath: "/",
     spaceId: "",
   });
@@ -68,6 +91,23 @@ export default function AdminGitHubPage() {
     fetchRepos();
     fetchSpaces();
   }, []);
+
+  // Fetch GitHub repos when modal opens
+  useEffect(() => {
+    if (showModal) {
+      fetchGitHubRepos("");
+    }
+  }, [showModal]);
+
+  // Debounced search
+  useEffect(() => {
+    if (!showModal) return;
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      fetchGitHubRepos(ghSearch);
+    }, 300);
+    return () => clearTimeout(searchTimer.current);
+  }, [ghSearch]);
 
   async function fetchRepos() {
     const res = await fetch("/api/admin/repos");
@@ -80,31 +120,29 @@ export default function AdminGitHubPage() {
     if (res.ok) setSpaces(await res.json());
   }
 
-  function parseRepoUrl(url: string): { owner: string; repo: string } | null {
-    // Handle formats: "owner/repo", "https://github.com/owner/repo", "github.com/owner/repo"
-    const cleaned = url
-      .trim()
-      .replace(/\.git$/, "")
-      .replace(/\/$/, "");
+  async function fetchGitHubRepos(query: string) {
+    setGhLoading(true);
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    const res = await fetch(`/api/admin/github/repos?${params}`);
+    if (res.ok) {
+      setGhRepos(await res.json());
+    }
+    setGhLoading(false);
+  }
 
-    const ghMatch = cleaned.match(
-      /(?:https?:\/\/)?(?:www\.)?github\.com\/([^/]+)\/([^/]+)/
-    );
-    if (ghMatch) return { owner: ghMatch[1], repo: ghMatch[2] };
-
-    const shortMatch = cleaned.match(/^([^/]+)\/([^/]+)$/);
-    if (shortMatch) return { owner: shortMatch[1], repo: shortMatch[2] };
-
-    return null;
+  function selectRepo(repo: GitHubRepoOption) {
+    setSelectedRepo(repo);
+    setForm((prev) => ({
+      ...prev,
+      branch: repo.defaultBranch,
+    }));
   }
 
   async function handleConnect() {
     setFormError("");
-    const parsed = parseRepoUrl(form.repoUrl);
-    if (!parsed) {
-      setFormError(
-        'Invalid repository. Use "owner/repo" or a GitHub URL.'
-      );
+    if (!selectedRepo) {
+      setFormError("Please select a repository.");
       return;
     }
     if (!form.spaceId) {
@@ -117,9 +155,9 @@ export default function AdminGitHubPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        owner: parsed.owner,
-        repo: parsed.repo,
-        branch: form.branch,
+        owner: selectedRepo.owner,
+        repo: selectedRepo.name,
+        branch: form.branch || selectedRepo.defaultBranch,
         docsPath: form.docsPath,
         spaceId: form.spaceId,
       }),
@@ -133,7 +171,9 @@ export default function AdminGitHubPage() {
     }
 
     setShowModal(false);
-    setForm({ repoUrl: "", branch: "main", docsPath: "/", spaceId: "" });
+    setSelectedRepo(null);
+    setGhSearch("");
+    setForm({ branch: "", docsPath: "/", spaceId: "" });
     setCreating(false);
     fetchRepos();
   }
@@ -184,93 +224,165 @@ export default function AdminGitHubPage() {
       {/* Connection Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-lg rounded-xl border bg-background p-6 shadow-2xl mx-4">
+          <div className="w-full max-w-2xl rounded-xl border bg-background p-6 shadow-2xl mx-4 max-h-[90vh] overflow-hidden flex flex-col">
             <h2 className="text-xl font-bold mb-1">Connect Repository</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Import markdown documentation from any public or accessible GitHub
-              repository.
+            <p className="text-sm text-muted-foreground mb-4">
+              Select a repository from your GitHub account to import its
+              documentation.
             </p>
 
-            <div className="space-y-4">
-              {/* Repository URL */}
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">
-                  Repository
-                </label>
-                <div className="relative">
-                  <Github className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="owner/repo or https://github.com/owner/repo"
-                    value={form.repoUrl}
-                    onChange={(e) =>
-                      setForm({ ...form, repoUrl: e.target.value })
-                    }
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-
-              {/* Branch and Docs Path */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Branch
-                  </label>
+            <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+              {/* Step 1: Pick a repo */}
+              {!selectedRepo ? (
+                <>
                   <div className="relative">
-                    <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="main"
-                      value={form.branch}
-                      onChange={(e) =>
-                        setForm({ ...form, branch: e.target.value })
-                      }
+                      placeholder="Search your repositories..."
+                      value={ghSearch}
+                      onChange={(e) => setGhSearch(e.target.value)}
                       className="pl-10"
+                      autoFocus
                     />
                   </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1.5 block">
-                    Docs Path
-                  </label>
-                  <div className="relative">
-                    <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="/ or /docs"
-                      value={form.docsPath}
-                      onChange={(e) =>
-                        setForm({ ...form, docsPath: e.target.value })
-                      }
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-              </div>
 
-              {/* Space selector */}
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">
-                  Target Space
-                </label>
-                <select
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={form.spaceId}
-                  onChange={(e) =>
-                    setForm({ ...form, spaceId: e.target.value })
-                  }
-                >
-                  <option value="">Select a space...</option>
-                  {spaces.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-                {spaces.length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">
-                    No spaces yet. Create a space first in the Spaces section.
-                  </p>
-                )}
-              </div>
+                  <div className="flex-1 overflow-y-auto border rounded-lg min-h-0 max-h-[400px]">
+                    {ghLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : ghRepos.length === 0 ? (
+                      <div className="py-8 text-center text-sm text-muted-foreground">
+                        No repositories found.
+                      </div>
+                    ) : (
+                      <div className="divide-y">
+                        {ghRepos.map((repo) => (
+                          <button
+                            key={repo.id}
+                            onClick={() => selectRepo(repo)}
+                            className="flex items-start gap-3 w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors"
+                          >
+                            <Github className="h-5 w-5 mt-0.5 text-muted-foreground shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm truncate">
+                                  {repo.fullName}
+                                </span>
+                                {repo.isPrivate && (
+                                  <Lock className="h-3 w-3 text-muted-foreground shrink-0" />
+                                )}
+                              </div>
+                              {repo.description && (
+                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                                  {repo.description}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                                {repo.language && <span>{repo.language}</span>}
+                                {repo.stargazersCount > 0 && (
+                                  <span className="flex items-center gap-0.5">
+                                    <Star className="h-3 w-3" />
+                                    {repo.stargazersCount}
+                                  </span>
+                                )}
+                                <span>
+                                  Branch: {repo.defaultBranch}
+                                </span>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Step 2: Configure the selected repo */}
+                  <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+                    <Github className="h-5 w-5 text-muted-foreground" />
+                    <div className="flex-1">
+                      <span className="font-medium text-sm">
+                        {selectedRepo.fullName}
+                      </span>
+                      {selectedRepo.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {selectedRepo.description}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedRepo(null)}
+                    >
+                      Change
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">
+                        Branch
+                      </label>
+                      <div className="relative">
+                        <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder={selectedRepo.defaultBranch}
+                          value={form.branch}
+                          onChange={(e) =>
+                            setForm({ ...form, branch: e.target.value })
+                          }
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">
+                        Docs Path
+                      </label>
+                      <div className="relative">
+                        <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="/ (root) or /docs"
+                          value={form.docsPath}
+                          onChange={(e) =>
+                            setForm({ ...form, docsPath: e.target.value })
+                          }
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-1.5 block">
+                      Target Space
+                    </label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={form.spaceId}
+                      onChange={(e) =>
+                        setForm({ ...form, spaceId: e.target.value })
+                      }
+                    >
+                      <option value="">Select a space...</option>
+                      {spaces.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    {spaces.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        No spaces yet. Create a space first in the Spaces
+                        section.
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
 
               {formError && (
                 <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-2 rounded">
@@ -284,24 +396,28 @@ export default function AdminGitHubPage() {
                 variant="outline"
                 onClick={() => {
                   setShowModal(false);
+                  setSelectedRepo(null);
+                  setGhSearch("");
                   setFormError("");
                 }}
               >
                 Cancel
               </Button>
-              <Button onClick={handleConnect} disabled={creating}>
-                {creating ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <FolderGit2 className="mr-2 h-4 w-4" />
-                    Connect & Sync
-                  </>
-                )}
-              </Button>
+              {selectedRepo && (
+                <Button onClick={handleConnect} disabled={creating}>
+                  {creating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <FolderGit2 className="mr-2 h-4 w-4" />
+                      Connect & Sync
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </div>
