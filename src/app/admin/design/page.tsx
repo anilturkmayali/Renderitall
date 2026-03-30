@@ -237,20 +237,42 @@ export default function DesignPage() {
     setHasChanges(true);
   }
 
-  // Move a top-level item into the section above it
+  // Move a top-level item into the nearest section above it
   function indentItem(index: number) {
-    // Find the nearest section above
     for (let i = index - 1; i >= 0; i--) {
       if (navItems[i].type === "SECTION") {
-        const item = navItems[index];
-        const updated = [...navItems];
-        updated.splice(index, 1); // remove from top level
+        const item = { ...navItems[index] };
+        const updated = navItems.filter((_, idx) => idx !== index);
+        // After removal, the section index shifts if it was after the removed item (it won't be since i < index)
         updated[i] = { ...updated[i], children: [...updated[i].children, item] };
         setNavItems(updated);
         setHasChanges(true);
         return;
       }
     }
+  }
+
+  // Add all pages from a repo as a section
+  function addAllFromRepo(repoId: string) {
+    const repo = repos.find((r) => r.id === repoId);
+    const repoPages = (ghPagesByRepo.get(repoId) || []).filter((p) => !pagesInNav.has(p.id));
+    if (repoPages.length === 0) return;
+
+    const section: NavItem = {
+      label: repo ? `${repo.owner}/${repo.repo}` : "Imported Pages",
+      type: "SECTION",
+      pageId: null,
+      url: null,
+      children: repoPages.map((p) => ({
+        label: p.title,
+        type: "PAGE" as const,
+        pageId: p.id,
+        url: null,
+        children: [],
+      })),
+    };
+    setNavItems([...navItems, section]);
+    setHasChanges(true);
   }
 
   // Move a child item out of its section to top level
@@ -345,9 +367,30 @@ export default function DesignPage() {
             <Card>
               <CardHeader className="py-3 flex flex-row items-center justify-between border-b">
                 <CardTitle className="text-base">Menu Structure</CardTitle>
-                <Button size="sm" onClick={() => openAddModal(null)}>
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />Add Item
-                </Button>
+                <div className="flex gap-2">
+                  {repos.length > 0 && (
+                    <select
+                      className="h-8 rounded-md border border-input bg-transparent px-2 text-xs"
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          addAllFromRepo(e.target.value);
+                          e.target.value = "";
+                        }
+                      }}
+                    >
+                      <option value="">+ Add entire repo...</option>
+                      {repos.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.owner}/{r.repo} ({r._count.pages} pages)
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <Button size="sm" onClick={() => openAddModal(null)}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />Add Item
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 {navItems.length === 0 ? (
