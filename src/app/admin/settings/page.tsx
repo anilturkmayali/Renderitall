@@ -62,8 +62,7 @@ export default function SettingsPage() {
   }
 
   function handleReconnect() {
-    // Force re-authentication by redirecting to the GitHub OAuth flow
-    window.location.href = "/api/auth/signin/github?callbackUrl=/admin/settings";
+    window.location.href = "/api/auth/reconnect";
   }
 
   if (loading) {

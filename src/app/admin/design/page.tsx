@@ -348,7 +348,7 @@ export default function DesignPage() {
 
       {/* Space selector */}
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium">Space:</label>
+        <label className="text-sm font-medium">Site:</label>
         <select className="h-9 rounded-md border border-input bg-transparent px-3 text-sm font-medium" value={selectedSpaceId} onChange={(e) => setSelectedSpaceId(e.target.value)}>
           {spaces.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>

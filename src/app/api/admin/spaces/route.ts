@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, slug, description, isPublic, orgId } = body;
+  const { name, slug, description, isPublic, orgId, headerLayout } = body;
 
   if (!name || !slug) {
     return NextResponse.json(
@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
       description: description || null,
       isPublic: isPublic !== false,
+      headerLayout: headerLayout || "default",
     },
   });
 

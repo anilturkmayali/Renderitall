@@ -90,7 +90,7 @@ export default async function AdminDashboard() {
       href: "/admin/pages",
     },
     {
-      label: "Spaces",
+      label: "Sites",
       value: stats.spaces,
       sub: "documentation sites",
       icon: Layers,
