@@ -7,13 +7,12 @@ import {
   LayoutDashboard,
   FileText,
   Github,
-  Image,
-  Users,
   Settings,
   Layers,
   PenTool,
   Globe,
   Navigation,
+  LayoutTemplate,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,6 +21,7 @@ const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Spaces", href: "/admin/spaces", icon: Layers },
   { label: "GitHub Repos", href: "/admin/github", icon: Github },
+  { label: "Site Builder", href: "/admin/builder", icon: LayoutTemplate },
   { label: "Navigation", href: "/admin/navigation", icon: Navigation },
   { label: "Pages", href: "/admin/pages", icon: FileText },
   { label: "Editor", href: "/admin/editor", icon: PenTool },
