@@ -33,20 +33,21 @@ interface GitHubAccount {
   error?: string;
 }
 
+const GITHUB_CLIENT_ID = "Ov23liAmf1feDEIF8oNd";
+
 export default function SettingsPage() {
   const [account, setAccount] = useState<GitHubAccount | null>(null);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
 
-  useEffect(() => {
-    fetchAccount();
-  }, []);
+  useEffect(() => { fetchAccount(); }, []);
 
   async function fetchAccount() {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/github/account");
       if (res.ok) setAccount(await res.json());
+      else setAccount({ connected: false });
     } catch {
       setAccount({ connected: false });
     }
@@ -54,7 +55,7 @@ export default function SettingsPage() {
   }
 
   async function handleDisconnect() {
-    if (!confirm("Disconnect your GitHub account? You won't be able to sync repos until you reconnect.")) return;
+    if (!confirm("Disconnect GitHub? You won't be able to sync repos.")) return;
     setDisconnecting(true);
     await fetch("/api/admin/github/account", { method: "DELETE" });
     setAccount({ connected: false });
@@ -66,203 +67,149 @@ export default function SettingsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
   }
 
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your account connections and platform settings.
-        </p>
+        <p className="text-muted-foreground">Manage your GitHub connection and platform settings.</p>
       </div>
 
       {/* GitHub Connection */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Github className="h-5 w-5" />
-            GitHub Connection
-          </CardTitle>
+          <CardTitle className="flex items-center gap-2"><Github className="h-5 w-5" />GitHub Connection</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           {!account?.connected ? (
-            /* Not connected */
-            <div className="flex items-start gap-4 p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
-              <XCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <p className="font-medium text-sm">GitHub not connected</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Connect your GitHub account to browse and sync repositories.
-                </p>
-                <Button size="sm" className="mt-3" onClick={handleReconnect}>
-                  <Github className="mr-1.5 h-3.5 w-3.5" />
-                  Connect GitHub
-                </Button>
+            <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
+              <div className="flex items-start gap-3">
+                <XCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">GitHub not connected</p>
+                  <p className="text-xs text-muted-foreground mt-1">Connect your GitHub account to browse and sync repositories.</p>
+                  <Button size="sm" className="mt-3" onClick={handleReconnect}>
+                    <Github className="mr-1.5 h-3.5 w-3.5" />Connect GitHub
+                  </Button>
+                </div>
               </div>
             </div>
           ) : account.tokenExpired || account.error ? (
-            /* Token expired */
-            <div className="flex items-start gap-4 p-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20">
-              <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <p className="font-medium text-sm">Connection expired</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your GitHub token has expired. Please reconnect to continue syncing.
-                </p>
-                {account.error && (
-                  <p className="text-xs text-red-500 mt-1">{account.error}</p>
-                )}
-                <Button size="sm" className="mt-3" onClick={handleReconnect}>
-                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                  Reconnect
-                </Button>
+            <div className="p-4 rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/20">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">Connection issue</p>
+                  <p className="text-xs text-muted-foreground mt-1">Your GitHub token may have expired. Reconnect to fix this.</p>
+                  {account.error && <p className="text-xs text-red-500 mt-1">{account.error}</p>}
+                  <Button size="sm" className="mt-3" onClick={handleReconnect}>
+                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reconnect
+                  </Button>
+                </div>
               </div>
             </div>
           ) : (
-            /* Connected */
             <>
               {/* Account info */}
               <div className="flex items-center gap-4 p-4 rounded-lg border bg-muted/30">
                 {account.avatarUrl ? (
-                  <img
-                    src={account.avatarUrl}
-                    alt={account.username || ""}
-                    className="h-12 w-12 rounded-full border"
-                  />
+                  <img src={account.avatarUrl} alt="" className="h-12 w-12 rounded-full border" />
                 ) : (
-                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                    <User className="h-6 w-6 text-muted-foreground" />
-                  </div>
+                  <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center"><User className="h-6 w-6 text-muted-foreground" /></div>
                 )}
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{account.name || account.username}</span>
-                    <Badge variant="success" className="text-[10px]">
-                      <CheckCircle2 className="mr-1 h-3 w-3" />
-                      Connected
-                    </Badge>
+                    <Badge variant="success" className="text-[10px]"><CheckCircle2 className="mr-1 h-3 w-3" />Connected</Badge>
                   </div>
-                  <a
-                    href={`https://github.com/${account.username}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
-                  >
-                    @{account.username}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                  <span className="text-sm text-muted-foreground">@{account.username}</span>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <Button variant="outline" size="sm" onClick={handleReconnect}>
-                    <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                    Reconnect
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleDisconnect}
-                    disabled={disconnecting}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <LogOut className="mr-1.5 h-3.5 w-3.5" />
-                    Disconnect
+                  <Button variant="outline" size="sm" onClick={handleReconnect}><RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reconnect</Button>
+                  <Button variant="ghost" size="sm" onClick={handleDisconnect} disabled={disconnecting} className="text-muted-foreground hover:text-destructive">
+                    <LogOut className="mr-1.5 h-3.5 w-3.5" />Disconnect
                   </Button>
                 </div>
               </div>
 
               {/* Permissions */}
               <div>
-                <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                  Permissions
-                </h3>
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-2"><Shield className="h-4 w-4" />Permissions</h3>
                 <div className="flex flex-wrap gap-2">
-                  <PermissionBadge
-                    label="Repository access"
-                    granted={account.hasRepoAccess}
-                  />
-                  <PermissionBadge
-                    label="Organization access"
-                    granted={account.hasOrgAccess}
-                  />
-                  {account.scopes?.map((scope) => (
-                    <Badge key={scope} variant="outline" className="text-xs">
-                      {scope}
-                    </Badge>
-                  ))}
+                  <Badge variant={account.hasRepoAccess ? "success" : "destructive"} className="text-xs gap-1">
+                    {account.hasRepoAccess ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                    Repository access
+                  </Badge>
+                  <Badge variant={account.hasOrgAccess ? "success" : "destructive"} className="text-xs gap-1">
+                    {account.hasOrgAccess ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                    Organization access
+                  </Badge>
                 </div>
                 {account.needsReconnect && (
-                  <div className="flex items-start gap-2 mt-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-sm font-medium">Missing permissions</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Your current connection is missing some permissions needed to access
-                        organization repos. Click &quot;Reconnect&quot; to grant the updated permissions.
-                      </p>
-                      <Button size="sm" className="mt-2" onClick={handleReconnect}>
-                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                        Reconnect with updated permissions
-                      </Button>
-                    </div>
+                  <div className="mt-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
+                    <p className="text-sm font-medium">Missing permissions</p>
+                    <p className="text-xs text-muted-foreground mt-1">Click &quot;Reconnect&quot; above to grant updated permissions.</p>
                   </div>
                 )}
               </div>
 
               {/* Organizations */}
               <div>
-                <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                  Organizations ({account.organizations?.length || 0})
-                </h3>
-                {!account.organizations || account.organizations.length === 0 ? (
-                  <div className="text-sm text-muted-foreground p-3 rounded-lg border bg-muted/30">
-                    <p>No organizations found.</p>
-                    <p className="text-xs mt-1">
-                      If you belong to organizations but don&apos;t see them here, click &quot;Reconnect&quot;
-                      above. You may need to grant access to each organization during the GitHub
-                      authorization step — look for the &quot;Grant&quot; button next to each org.
-                    </p>
-                  </div>
-                ) : (
+                <h3 className="text-sm font-medium mb-2 flex items-center gap-2"><Building2 className="h-4 w-4" />Organizations ({account.organizations?.length || 0})</h3>
+                {account.organizations && account.organizations.length > 0 ? (
                   <div className="grid gap-2">
                     {account.organizations.map((org) => (
-                      <div
-                        key={org.login}
-                        className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/30 transition-colors"
-                      >
-                        <img
-                          src={org.avatar_url}
-                          alt={org.login}
-                          className="h-8 w-8 rounded-md"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <a
-                            href={`https://github.com/${org.login}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium text-sm hover:text-primary flex items-center gap-1"
-                          >
-                            {org.login}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                          {org.description && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              {org.description}
-                            </p>
-                          )}
+                      <div key={org.login} className="flex items-center gap-3 p-3 rounded-lg border">
+                        <img src={org.avatar_url} alt="" className="h-8 w-8 rounded-md" />
+                        <div className="flex-1">
+                          <span className="font-medium text-sm">{org.login}</span>
+                          {org.description && <p className="text-xs text-muted-foreground">{org.description}</p>}
                         </div>
-                        <Badge variant="success" className="text-[10px] shrink-0">
-                          Access granted
-                        </Badge>
+                        <Badge variant="success" className="text-[10px]">Access granted</Badge>
                       </div>
                     ))}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-lg border bg-muted/30 space-y-3">
+                    <p className="text-sm font-medium">No organizations visible</p>
+                    <p className="text-xs text-muted-foreground">
+                      To access organization repositories, you need to grant this app access to your organization. Follow these steps:
+                    </p>
+                    <ol className="text-xs text-muted-foreground space-y-2 list-decimal list-inside">
+                      <li>
+                        <a
+                          href={`https://github.com/settings/connections/applications/${GITHUB_CLIENT_ID}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline inline-flex items-center gap-1"
+                        >
+                          Open your GitHub Authorized Apps page
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </li>
+                      <li>Find <strong>Renderitall</strong> in the list and click on it</li>
+                      <li>Under &quot;Organization access&quot;, click <strong>&quot;Grant&quot;</strong> next to each organization you want to use</li>
+                      <li>If you see &quot;Request&quot; instead of &quot;Grant&quot;, your org admin needs to approve the request</li>
+                      <li>Come back here and click <strong>&quot;Reconnect&quot;</strong> above to refresh</li>
+                    </ol>
+                    <div className="flex gap-2 pt-2">
+                      <a
+                        href={`https://github.com/settings/connections/applications/${GITHUB_CLIENT_ID}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Button size="sm" variant="outline">
+                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                          Open GitHub Settings
+                        </Button>
+                      </a>
+                      <Button size="sm" variant="outline" onClick={() => { handleReconnect(); }}>
+                        <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                        Reconnect
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -270,47 +217,6 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Help */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Troubleshooting</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <div>
-            <p className="font-medium text-foreground">I don&apos;t see my organization&apos;s repos</p>
-            <p className="text-xs mt-1">
-              1. Click &quot;Reconnect&quot; above.<br />
-              2. On the GitHub authorization page, find your organization in the list.<br />
-              3. Click &quot;Grant&quot; next to it (you may need org admin approval).<br />
-              4. Complete the authorization.
-            </p>
-          </div>
-          <div>
-            <p className="font-medium text-foreground">Sync is failing</p>
-            <p className="text-xs mt-1">
-              Try clicking &quot;Reconnect&quot; to refresh your GitHub token. If the repo is private,
-              make sure you have access to it with the connected account.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
     </div>
-  );
-}
-
-function PermissionBadge({ label, granted }: { label: string; granted?: boolean }) {
-  return (
-    <Badge
-      variant={granted ? "success" : "destructive"}
-      className="text-xs gap-1"
-    >
-      {granted ? (
-        <CheckCircle2 className="h-3 w-3" />
-      ) : (
-        <XCircle className="h-3 w-3" />
-      )}
-      {label}
-    </Badge>
   );
 }

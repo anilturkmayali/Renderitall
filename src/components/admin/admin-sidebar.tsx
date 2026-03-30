@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Layers,
   Globe,
-  Paintbrush,
   FileText,
   Github,
   Settings,
@@ -18,7 +17,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Sites", href: "/admin/spaces", icon: Layers },
-  { label: "Design", href: "/admin/design", icon: Paintbrush },
   { label: "Pages", href: "/admin/pages", icon: FileText },
   { label: "Repositories", href: "/admin/repositories", icon: Github },
   { label: "Settings", href: "/admin/settings", icon: Settings },
