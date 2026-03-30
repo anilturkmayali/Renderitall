@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
       updatedAt: true,
       parentId: true,
       githubPath: true,
+      githubRepoId: true,
+      spaceId: true,
       space: { select: { name: true, slug: true } },
     },
   });

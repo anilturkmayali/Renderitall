@@ -203,7 +203,15 @@ export default function DesignPage() {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: navItems.filter((i) => i._visible).map(strip) }),
     });
-    if (res.ok) { setNavItems((await res.json()).map(mapNav)); setNavHasChanges(false); }
+    if (res.ok) {
+      setNavItems((await res.json()).map(mapNav));
+      setNavHasChanges(false);
+      // Refresh preview to show updated menu
+      setTimeout(() => {
+        const f = document.getElementById("design-preview") as HTMLIFrameElement;
+        if (f) f.src = f.src;
+      }, 500);
+    }
     setNavSaving(false);
   }
 
@@ -216,6 +224,11 @@ export default function DesignPage() {
     setBrandingSaved(true);
     setTimeout(() => setBrandingSaved(false), 2000);
     setBrandingSaving(false);
+    // Refresh preview
+    setTimeout(() => {
+      const f = document.getElementById("design-preview") as HTMLIFrameElement;
+      if (f) f.src = f.src;
+    }, 500);
   }
 
   const selectedSpace = spaces.find((s) => s.id === selectedSpaceId);
