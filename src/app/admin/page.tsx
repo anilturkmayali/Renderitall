@@ -27,6 +27,18 @@ async function getStats() {
 }
 
 async function getRecentRepos() {
+  // Auto-reset repos stuck in SYNCING for more than 5 minutes
+  await prisma.gitHubRepo.updateMany({
+    where: {
+      lastSyncStatus: "SYNCING",
+      updatedAt: { lt: new Date(Date.now() - 5 * 60 * 1000) },
+    },
+    data: {
+      lastSyncStatus: "ERROR",
+      lastSyncError: "Sync timed out",
+    },
+  });
+
   return prisma.gitHubRepo.findMany({
     orderBy: { updatedAt: "desc" },
     take: 5,
@@ -96,7 +108,7 @@ export default async function AdminDashboard() {
   const syncStatusIcon = {
     SUCCESS: <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />,
     ERROR: <XCircle className="h-3.5 w-3.5 text-red-500" />,
-    SYNCING: <RefreshCw className="h-3.5 w-3.5 text-amber-500 animate-spin" />,
+    SYNCING: <RefreshCw className="h-3.5 w-3.5 text-amber-500" />,
     IDLE: <Clock className="h-3.5 w-3.5 text-muted-foreground" />,
   };
 
