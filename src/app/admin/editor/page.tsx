@@ -9,6 +9,7 @@ import {
   Loader2,
   Trash2,
   ExternalLink,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,11 +26,12 @@ export default function EditorPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pageId = searchParams.get("page");
+  const spaceIdParam = searchParams.get("spaceId");
 
   const [title, setTitle] = React.useState("");
   const [slug, setSlug] = React.useState("");
   const [content, setContent] = React.useState("");
-  const [spaceId, setSpaceId] = React.useState("");
+  const [spaceId, setSpaceId] = React.useState(spaceIdParam || "");
   const [spaces, setSpaces] = React.useState<Space[]>([]);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
@@ -47,7 +49,11 @@ export default function EditorPage() {
       .then((r) => r.json())
       .then((data) => {
         setSpaces(data);
-        if (!pageId && data.length > 0 && !spaceId) {
+        if (spaceIdParam) {
+          // If spaceId was passed in URL, use it and set the slug
+          const match = data.find((s: Space) => s.id === spaceIdParam);
+          if (match) setSpaceSlug(match.slug);
+        } else if (!pageId && data.length > 0 && !spaceId) {
           setSpaceId(data[0].id);
           setSpaceSlug(data[0].slug);
         }
@@ -213,31 +219,41 @@ export default function EditorPage() {
           )}
           {!isGitHub && (
             <>
-              {status === "draft" && (
+              {status === "published" && (
                 <Button
                   variant="outline"
-                  onClick={() => handleSave("published")}
+                  onClick={() => handleSave("draft")}
                   disabled={saving || !title}
                 >
-                  <Eye className="mr-2 h-4 w-4" />
-                  Publish
+                  Unpublish
                 </Button>
               )}
               <Button
-                onClick={() => handleSave()}
+                variant="outline"
+                onClick={() => handleSave("draft")}
+                disabled={saving || !title}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Save Draft
+              </Button>
+              <Button
+                onClick={() => handleSave("published")}
                 disabled={saving || !title}
               >
                 {saved ? (
-                  "Saved!"
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Published!
+                  </>
                 ) : saving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    Publishing...
                   </>
                 ) : (
                   <>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save
+                    <Eye className="mr-2 h-4 w-4" />
+                    {status === "published" ? "Save & Publish" : "Publish"}
                   </>
                 )}
               </Button>
