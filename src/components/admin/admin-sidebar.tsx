@@ -13,19 +13,18 @@ import {
   Layers,
   PenTool,
   Globe,
+  Navigation,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Pages", href: "/admin/pages", icon: FileText },
   { label: "Spaces", href: "/admin/spaces", icon: Layers },
   { label: "GitHub Repos", href: "/admin/github", icon: Github },
+  { label: "Navigation", href: "/admin/navigation", icon: Navigation },
+  { label: "Pages", href: "/admin/pages", icon: FileText },
   { label: "Editor", href: "/admin/editor", icon: PenTool },
-  { label: "Media", href: "/admin/media", icon: Image },
-  { label: "Team", href: "/admin/team", icon: Users },
-  { label: "Domains", href: "/admin/domains", icon: Globe },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

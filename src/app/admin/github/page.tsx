@@ -1,4 +1,6 @@
-import { prisma } from "@/lib/prisma";
+"use client";
+
+import { useState, useEffect } from "react";
 import {
   Github,
   RefreshCw,
@@ -7,56 +9,317 @@ import {
   Clock,
   Plus,
   ExternalLink,
+  Trash2,
+  Loader2,
+  FolderGit2,
+  GitBranch,
+  FolderOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-async function getRepos() {
-  return prisma.gitHubRepo.findMany({
-    orderBy: { createdAt: "desc" },
-    include: {
-      space: { select: { name: true, slug: true } },
-      _count: { select: { pages: true } },
-    },
-  });
+interface Repo {
+  id: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  docsPath: string;
+  lastSyncAt: string | null;
+  lastSyncStatus: "IDLE" | "SYNCING" | "SUCCESS" | "ERROR";
+  lastSyncError: string | null;
+  pageCount: number;
+  space: { name: string; slug: string };
+  _count: { pages: number };
+}
+
+interface Space {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 const statusConfig = {
-  IDLE: { icon: Clock, color: "secondary", label: "Idle" },
-  SYNCING: { icon: RefreshCw, color: "warning", label: "Syncing" },
-  SUCCESS: { icon: CheckCircle2, color: "success", label: "Synced" },
-  ERROR: { icon: XCircle, color: "destructive", label: "Error" },
-} as const;
+  IDLE: { icon: Clock, color: "secondary" as const, label: "Idle" },
+  SYNCING: { icon: RefreshCw, color: "warning" as const, label: "Syncing" },
+  SUCCESS: { icon: CheckCircle2, color: "success" as const, label: "Synced" },
+  ERROR: { icon: XCircle, color: "destructive" as const, label: "Error" },
+};
 
-export default async function AdminGitHubPage() {
-  const repos = await getRepos();
+export default function AdminGitHubPage() {
+  const [repos, setRepos] = useState<Repo[]>([]);
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [syncing, setSyncing] = useState<Set<string>>(new Set());
+
+  // Form state
+  const [form, setForm] = useState({
+    repoUrl: "",
+    branch: "main",
+    docsPath: "/",
+    spaceId: "",
+  });
+  const [creating, setCreating] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  useEffect(() => {
+    fetchRepos();
+    fetchSpaces();
+  }, []);
+
+  async function fetchRepos() {
+    const res = await fetch("/api/admin/repos");
+    if (res.ok) setRepos(await res.json());
+    setLoading(false);
+  }
+
+  async function fetchSpaces() {
+    const res = await fetch("/api/admin/spaces");
+    if (res.ok) setSpaces(await res.json());
+  }
+
+  function parseRepoUrl(url: string): { owner: string; repo: string } | null {
+    // Handle formats: "owner/repo", "https://github.com/owner/repo", "github.com/owner/repo"
+    const cleaned = url
+      .trim()
+      .replace(/\.git$/, "")
+      .replace(/\/$/, "");
+
+    const ghMatch = cleaned.match(
+      /(?:https?:\/\/)?(?:www\.)?github\.com\/([^/]+)\/([^/]+)/
+    );
+    if (ghMatch) return { owner: ghMatch[1], repo: ghMatch[2] };
+
+    const shortMatch = cleaned.match(/^([^/]+)\/([^/]+)$/);
+    if (shortMatch) return { owner: shortMatch[1], repo: shortMatch[2] };
+
+    return null;
+  }
+
+  async function handleConnect() {
+    setFormError("");
+    const parsed = parseRepoUrl(form.repoUrl);
+    if (!parsed) {
+      setFormError(
+        'Invalid repository. Use "owner/repo" or a GitHub URL.'
+      );
+      return;
+    }
+    if (!form.spaceId) {
+      setFormError("Please select a space.");
+      return;
+    }
+
+    setCreating(true);
+    const res = await fetch("/api/admin/repos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        owner: parsed.owner,
+        repo: parsed.repo,
+        branch: form.branch,
+        docsPath: form.docsPath,
+        spaceId: form.spaceId,
+      }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      setFormError(data.error || "Failed to connect repository");
+      setCreating(false);
+      return;
+    }
+
+    setShowModal(false);
+    setForm({ repoUrl: "", branch: "main", docsPath: "/", spaceId: "" });
+    setCreating(false);
+    fetchRepos();
+  }
+
+  async function handleSync(repoId: string) {
+    setSyncing((prev) => new Set([...prev, repoId]));
+    await fetch(`/api/admin/repos/${repoId}/sync`, { method: "POST" });
+    setSyncing((prev) => {
+      const next = new Set(prev);
+      next.delete(repoId);
+      return next;
+    });
+    fetchRepos();
+  }
+
+  async function handleDelete(repoId: string) {
+    if (!confirm("Delete this repository connection and all its synced pages?"))
+      return;
+    await fetch(`/api/admin/repos/${repoId}`, { method: "DELETE" });
+    fetchRepos();
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">GitHub Repositories</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            GitHub Repositories
+          </h1>
           <p className="text-muted-foreground">
             Connect GitHub repositories to import documentation automatically.
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setShowModal(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Connect Repository
         </Button>
       </div>
 
+      {/* Connection Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-lg rounded-xl border bg-background p-6 shadow-2xl mx-4">
+            <h2 className="text-xl font-bold mb-1">Connect Repository</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Import markdown documentation from any public or accessible GitHub
+              repository.
+            </p>
+
+            <div className="space-y-4">
+              {/* Repository URL */}
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Repository
+                </label>
+                <div className="relative">
+                  <Github className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="owner/repo or https://github.com/owner/repo"
+                    value={form.repoUrl}
+                    onChange={(e) =>
+                      setForm({ ...form, repoUrl: e.target.value })
+                    }
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+
+              {/* Branch and Docs Path */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">
+                    Branch
+                  </label>
+                  <div className="relative">
+                    <GitBranch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="main"
+                      value={form.branch}
+                      onChange={(e) =>
+                        setForm({ ...form, branch: e.target.value })
+                      }
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">
+                    Docs Path
+                  </label>
+                  <div className="relative">
+                    <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="/ or /docs"
+                      value={form.docsPath}
+                      onChange={(e) =>
+                        setForm({ ...form, docsPath: e.target.value })
+                      }
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Space selector */}
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">
+                  Target Space
+                </label>
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={form.spaceId}
+                  onChange={(e) =>
+                    setForm({ ...form, spaceId: e.target.value })
+                  }
+                >
+                  <option value="">Select a space...</option>
+                  {spaces.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                {spaces.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    No spaces yet. Create a space first in the Spaces section.
+                  </p>
+                )}
+              </div>
+
+              {formError && (
+                <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-2 rounded">
+                  {formError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowModal(false);
+                  setFormError("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleConnect} disabled={creating}>
+                {creating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <FolderGit2 className="mr-2 h-4 w-4" />
+                    Connect & Sync
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Repository list */}
       {repos.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Github className="mx-auto h-12 w-12 mb-4 opacity-50" />
-            <h3 className="font-semibold text-lg mb-1">No repositories connected</h3>
+            <h3 className="font-semibold text-lg mb-1">
+              No repositories connected
+            </h3>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
               Connect a GitHub repository to automatically import Markdown
               documentation. Changes pushed to GitHub will sync instantly.
             </p>
-            <Button className="mt-6">
+            <Button className="mt-6" onClick={() => setShowModal(true)}>
               <Github className="mr-2 h-4 w-4" />
               Connect your first repository
             </Button>
@@ -67,6 +330,7 @@ export default async function AdminGitHubPage() {
           {repos.map((repo) => {
             const status = statusConfig[repo.lastSyncStatus];
             const StatusIcon = status.icon;
+            const isSyncing = syncing.has(repo.id);
 
             return (
               <Card key={repo.id}>
@@ -79,29 +343,47 @@ export default async function AdminGitHubPage() {
                       <h3 className="font-semibold">
                         {repo.owner}/{repo.repo}
                       </h3>
-                      <Badge variant={status.color as any}>
-                        <StatusIcon className="mr-1 h-3 w-3" />
-                        {status.label}
+                      <Badge variant={status.color}>
+                        <StatusIcon
+                          className={`mr-1 h-3 w-3 ${isSyncing ? "animate-spin" : ""}`}
+                        />
+                        {isSyncing ? "Syncing..." : status.label}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                      <span>Branch: {repo.branch}</span>
-                      <span>Path: {repo.docsPath}</span>
+                      <span className="flex items-center gap-1">
+                        <GitBranch className="h-3 w-3" />
+                        {repo.branch}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <FolderOpen className="h-3 w-3" />
+                        {repo.docsPath}
+                      </span>
                       <span>Space: {repo.space.name}</span>
                       <span>{repo._count.pages} pages</span>
                     </div>
                     {repo.lastSyncAt && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Last synced: {new Date(repo.lastSyncAt).toLocaleString()}
+                        Last synced:{" "}
+                        {new Date(repo.lastSyncAt).toLocaleString()}
                       </p>
                     )}
                     {repo.lastSyncError && (
-                      <p className="text-xs text-red-500 mt-1">{repo.lastSyncError}</p>
+                      <p className="text-xs text-red-500 mt-1">
+                        {repo.lastSyncError}
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm">
-                      <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleSync(repo.id)}
+                      disabled={isSyncing}
+                    >
+                      <RefreshCw
+                        className={`mr-1 h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`}
+                      />
                       Sync
                     </Button>
                     <a
@@ -113,6 +395,14 @@ export default async function AdminGitHubPage() {
                         <ExternalLink className="h-4 w-4" />
                       </Button>
                     </a>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(repo.id)}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

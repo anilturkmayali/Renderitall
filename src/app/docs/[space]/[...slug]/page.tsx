@@ -31,14 +31,100 @@ async function getPage(spaceId: string, slug: string) {
   });
 }
 
-async function getSidebarPages(spaceId: string): Promise<SidebarSection[]> {
+async function getSidebarFromNav(spaceId: string): Promise<SidebarSection[]> {
+  // First try NavItem-based navigation
+  const navItems = await prisma.navItem.findMany({
+    where: { spaceId, parentId: null },
+    orderBy: { position: "asc" },
+    include: {
+      children: {
+        orderBy: { position: "asc" },
+        include: {
+          children: {
+            orderBy: { position: "asc" },
+          },
+        },
+      },
+    },
+  });
+
+  if (navItems.length > 0) {
+    // Convert NavItems to sidebar sections
+    const sections: SidebarSection[] = [];
+    let currentSection: SidebarSection = { label: "", pages: [] };
+
+    for (const item of navItems) {
+      if (item.type === "SECTION") {
+        // Start a new section
+        if (currentSection.pages.length > 0 || currentSection.label) {
+          sections.push(currentSection);
+        }
+        currentSection = {
+          label: item.label,
+          pages: item.children.map((child) => ({
+            id: child.pageId || child.id,
+            title: child.label,
+            slug: "", // Will be resolved below
+            children: child.children?.map((grandchild) => ({
+              id: grandchild.pageId || grandchild.id,
+              title: grandchild.label,
+              slug: "",
+            })) || [],
+          })),
+        };
+      } else if (item.type === "PAGE") {
+        currentSection.pages.push({
+          id: item.pageId || item.id,
+          title: item.label,
+          slug: "",
+          children: item.children?.map((child) => ({
+            id: child.pageId || child.id,
+            title: child.label,
+            slug: "",
+          })) || [],
+        });
+      }
+    }
+    if (currentSection.pages.length > 0 || currentSection.label) {
+      sections.push(currentSection);
+    }
+
+    // Resolve slugs for pages
+    const allPageIds = new Set<string>();
+    for (const section of sections) {
+      for (const page of section.pages) {
+        allPageIds.add(page.id);
+        for (const child of page.children || []) {
+          allPageIds.add(child.id);
+        }
+      }
+    }
+
+    const pages = await prisma.page.findMany({
+      where: { id: { in: Array.from(allPageIds) } },
+      select: { id: true, slug: true },
+    });
+    const slugMap = new Map(pages.map((p) => [p.id, p.slug]));
+
+    for (const section of sections) {
+      for (const page of section.pages) {
+        page.slug = slugMap.get(page.id) || page.id;
+        for (const child of page.children || []) {
+          child.slug = slugMap.get(child.id) || child.id;
+        }
+      }
+    }
+
+    return sections;
+  }
+
+  // Fallback: build from page hierarchy
   const pages = await prisma.page.findMany({
     where: { spaceId, status: "PUBLISHED" },
     orderBy: { position: "asc" },
     select: { id: true, title: true, slug: true, parentId: true },
   });
 
-  // Group into top-level pages and their children
   const topLevel = pages.filter((p) => !p.parentId);
   const childMap = new Map<string, typeof pages>();
   pages.forEach((p) => {
@@ -89,11 +175,12 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
   if (!page) notFound();
 
   const [sections, adjacent] = await Promise.all([
-    getSidebarPages(space.id),
+    getSidebarFromNav(space.id),
     getAdjacentPages(space.id, page.position),
   ]);
 
   const content = page.content || "";
+  const template = space.headerLayout || "default";
 
   // Build "Edit on GitHub" link
   let editUrl: string | undefined;
@@ -108,10 +195,17 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
     href: `/docs/${params.space}/${slugParts.slice(0, i + 1).join("/")}`,
   }));
 
+  const isMinimal = template === "minimal";
+  const isModern = template === "modern";
+
   return (
     <>
       {/* Sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r bg-sidebar md:block">
+      <aside
+        className={`hidden shrink-0 border-r bg-sidebar md:block ${
+          isMinimal ? "w-56" : "w-64"
+        }`}
+      >
         <div className="sticky top-14 h-[calc(100vh-3.5rem)]">
           <DocSidebar spaceSlug={params.space} sections={sections} />
         </div>
@@ -119,7 +213,11 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
 
       {/* Main content */}
       <main className="flex-1 min-w-0">
-        <div className="mx-auto max-w-4xl px-6 py-8 lg:px-8">
+        <div
+          className={`mx-auto px-6 py-8 lg:px-8 ${
+            isMinimal ? "max-w-3xl" : isModern ? "max-w-5xl" : "max-w-4xl"
+          }`}
+        >
           {/* Breadcrumbs */}
           <nav className="mb-6 flex items-center gap-1 text-sm text-muted-foreground">
             <Link href={`/docs/${params.space}`} className="hover:text-foreground">
@@ -136,19 +234,31 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
           </nav>
 
           {/* Page title */}
-          <h1 className="text-3xl font-bold tracking-tight mb-2">{page.title}</h1>
+          <h1
+            className={`font-bold tracking-tight mb-2 ${
+              isModern ? "text-4xl" : "text-3xl"
+            }`}
+            style={
+              space.primaryColor
+                ? ({ "--title-color": space.primaryColor } as React.CSSProperties)
+                : undefined
+            }
+          >
+            {page.title}
+          </h1>
 
           {/* Metadata bar */}
           <div className="mb-8 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
             {page.commitDate && (
               <span className="flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5" />
-                Last updated {formatDistanceToNow(new Date(page.commitDate), { addSuffix: true })}
+                Last updated{" "}
+                {formatDistanceToNow(new Date(page.commitDate), {
+                  addSuffix: true,
+                })}
               </span>
             )}
-            {page.commitAuthor && (
-              <span>by {page.commitAuthor}</span>
-            )}
+            {page.commitAuthor && <span>by {page.commitAuthor}</span>}
             {editUrl && (
               <Link
                 href={editUrl}
@@ -202,12 +312,14 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
         </div>
       </main>
 
-      {/* Table of Contents */}
-      <aside className="hidden w-56 shrink-0 xl:block">
-        <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto p-4">
-          <TableOfContents content={content} />
-        </div>
-      </aside>
+      {/* Table of Contents (hidden in minimal template) */}
+      {!isMinimal && (
+        <aside className="hidden w-56 shrink-0 xl:block">
+          <div className="sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto p-4">
+            <TableOfContents content={content} />
+          </div>
+        </aside>
+      )}
     </>
   );
 }
