@@ -42,11 +42,16 @@ export async function POST(req: NextRequest) {
     where: { userId: session.user.id, provider: "github" },
   });
 
+  // Generate a slug from the repo name
+  const repoSlug = repo.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-");
+
   const githubRepo = await prisma.gitHubRepo.create({
     data: {
       spaceId,
       owner,
       repo,
+      slug: repoSlug,
+      displayName: repo.replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()),
       branch: branch || "main",
       docsPath: docsPath || "/",
       accessToken: account?.access_token || null,

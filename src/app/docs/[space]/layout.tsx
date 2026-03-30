@@ -93,24 +93,55 @@ export default async function DocsLayout({ children, params }: LayoutProps) {
               </span>
             </Link>
 
-            {/* Top nav links — always shown when items exist */}
+            {/* Top nav — supports flat links, repo links, and dropdowns */}
             {topLinks.length > 0 && (
-              <nav className="hidden md:flex items-center gap-1 ml-4">
-                {topLinks.map((link, i) => (
-                  <a
-                    key={i}
-                    href={link.url || "#"}
-                    className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                      useColoredHeader
-                        ? "text-white/80 hover:text-white hover:bg-white/10"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                    }`}
-                    target={link.url?.startsWith("http") ? "_blank" : undefined}
-                    rel={link.url?.startsWith("http") ? "noopener noreferrer" : undefined}
-                  >
-                    {link.label}
-                  </a>
-                ))}
+              <nav className="hidden md:flex items-center gap-0.5 ml-4">
+                {topLinks.map((link: any, i: number) => {
+                  const linkClass = `px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    useColoredHeader
+                      ? "text-white/80 hover:text-white hover:bg-white/10"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`;
+
+                  // Dropdown menu
+                  if (link.children && link.children.length > 0) {
+                    return (
+                      <div key={i} className="relative group">
+                        <button className={linkClass}>
+                          {link.label}
+                          <svg className="inline-block ml-1 h-3 w-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        <div className="absolute top-full left-0 mt-1 w-56 rounded-lg border bg-background shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                          <div className="py-1.5">
+                            {link.children.map((child: any, ci: number) => (
+                              <a
+                                key={ci}
+                                href={child.url || "#"}
+                                className="flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                                target={child.url?.startsWith("http") ? "_blank" : undefined}
+                              >
+                                {child.label}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Regular link or repo link
+                  return (
+                    <a
+                      key={i}
+                      href={link.url || "#"}
+                      className={linkClass}
+                      target={link.url?.startsWith("http") ? "_blank" : undefined}
+                      rel={link.url?.startsWith("http") ? "noopener noreferrer" : undefined}
+                    >
+                      {link.label}
+                    </a>
+                  );
+                })}
               </nav>
             )}
           </div>

@@ -238,6 +238,8 @@ model GitHubRepo {
   spaceId       String   @map("space_id")
   owner         String
   repo          String
+  slug          String?  @map("repo_slug")
+  displayName   String?  @map("display_name")
   branch        String   @default("main")
   docsPath      String   @default("/") @map("docs_path")
   installationId Int?    @map("installation_id")

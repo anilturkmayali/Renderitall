@@ -84,7 +84,7 @@ export default function SiteDetailPage() {
   const [addUrl, setAddUrl] = useState("");
 
   // Top Bar Menu
-  interface TopMenuItem { label: string; url: string; pageId?: string }
+  interface TopMenuItem { label: string; url?: string; repoId?: string; children?: TopMenuItem[] }
   const [topMenu, setTopMenu] = useState<TopMenuItem[]>([]);
   const [topMenuDirty, setTopMenuDirty] = useState(false);
   const [topMenuSaving, setTopMenuSaving] = useState(false);
@@ -92,7 +92,9 @@ export default function SiteDetailPage() {
   const [topAddLabel, setTopAddLabel] = useState("");
   const [topAddUrl, setTopAddUrl] = useState("");
   const [topAddPageId, setTopAddPageId] = useState("");
-  const [topAddType, setTopAddType] = useState<"page"|"link">("page");
+  const [topAddType, setTopAddType] = useState<"repo"|"page"|"link"|"dropdown">("repo");
+  const [topAddRepoId, setTopAddRepoId] = useState("");
+  const [topEditDropdown, setTopEditDropdown] = useState<number|null>(null); // index of dropdown being edited
 
   // Appearance
   const [form, setForm] = useState({
@@ -267,18 +269,37 @@ export default function SiteDetailPage() {
   }
 
   function addTopMenuItem() {
-    if (topAddType === "page" && topAddPageId) {
-      const page = pages.find(p => p.id === topAddPageId);
-      if (page) {
-        setTopMenu([...topMenu, { label: page.title, url: `/docs/${space?.slug}/${page.slug}`, pageId: page.id }]);
-        setTopMenuDirty(true);
+    let item: TopMenuItem | null = null;
+
+    if (topAddType === "repo" && topAddRepoId) {
+      const repo = repos.find(r => r.id === topAddRepoId);
+      if (repo) {
+        const repoSlug = (repo as any).slug || repo.repo.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+        item = { label: (repo as any).displayName || repo.repo, repoId: repo.id, url: `/docs/${space?.slug}/${repoSlug}` };
       }
+    } else if (topAddType === "page" && topAddPageId) {
+      const page = pages.find(p => p.id === topAddPageId);
+      if (page) item = { label: page.title, url: `/docs/${space?.slug}/${page.slug}` };
     } else if (topAddType === "link" && topAddLabel && topAddUrl) {
-      setTopMenu([...topMenu, { label: topAddLabel, url: topAddUrl }]);
-      setTopMenuDirty(true);
+      item = { label: topAddLabel, url: topAddUrl };
+    } else if (topAddType === "dropdown" && topAddLabel) {
+      item = { label: topAddLabel, children: [] };
     }
+
+    if (!item) return;
+
+    // If editing a dropdown's children, add there
+    if (topEditDropdown !== null && topMenu[topEditDropdown]?.children) {
+      const updated = [...topMenu];
+      updated[topEditDropdown] = { ...updated[topEditDropdown], children: [...(updated[topEditDropdown].children || []), item] };
+      setTopMenu(updated);
+    } else {
+      setTopMenu([...topMenu, item]);
+    }
+    setTopMenuDirty(true);
     setShowTopMenuAdd(false);
-    setTopAddLabel(""); setTopAddUrl(""); setTopAddPageId("");
+    setTopEditDropdown(null);
+    setTopAddLabel(""); setTopAddUrl(""); setTopAddPageId(""); setTopAddRepoId("");
   }
 
   function removeTopMenuItem(index: number) {
@@ -460,21 +481,45 @@ export default function SiteDetailPage() {
             <CardContent className="p-3">
               <p className="text-xs text-muted-foreground mb-3">These links appear horizontally in the header bar of your site.</p>
               {topMenu.length === 0 ? (
-                <div className="py-4 text-center text-muted-foreground text-sm">No top bar items. Click &quot;Add Item&quot; to add links or pages to the header.</div>
+                <div className="py-4 text-center text-muted-foreground text-sm">No top bar items. Click &quot;Add Item&quot; to add repos, pages, links, or dropdown menus.</div>
               ) : (
                 <div className="space-y-1">
                   {topMenu.map((item, i) => (
-                    <div key={i} className="flex items-center gap-3 rounded border px-3 py-2">
-                      <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium block truncate">{item.label}</span>
-                        <span className="text-xs text-muted-foreground truncate block">{item.url}</span>
+                    <div key={i}>
+                      <div className="flex items-center gap-3 rounded border px-3 py-2">
+                        {item.repoId ? <Github className="h-4 w-4 text-muted-foreground shrink-0" /> :
+                         item.children ? <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" /> :
+                         <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium block truncate">{item.label}</span>
+                          {item.url && <span className="text-xs text-muted-foreground truncate block">{item.url}</span>}
+                          {item.repoId && <span className="text-xs text-muted-foreground">Repository section</span>}
+                          {item.children && <span className="text-xs text-muted-foreground">Dropdown · {item.children.length} items</span>}
+                        </div>
+                        <Badge variant="outline" className="text-[10px] shrink-0">
+                          {item.repoId ? "Repo" : item.children ? "Dropdown" : "Link"}
+                        </Badge>
+                        <div className="flex gap-1 shrink-0">
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"up")} disabled={i===0}><ChevronUp className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"down")} disabled={i===topMenu.length-1}><ChevronDown className="h-3.5 w-3.5" /></Button>
+                          {item.children && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>{setTopEditDropdown(i);setShowTopMenuAdd(true)}} title="Add sub-item"><Plus className="h-3.5 w-3.5" /></Button>}
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={()=>removeTopMenuItem(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        </div>
                       </div>
-                      <div className="flex gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"up")} disabled={i===0}><ChevronUp className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"down")} disabled={i===topMenu.length-1}><ChevronDown className="h-3.5 w-3.5" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={()=>removeTopMenuItem(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                      </div>
+                      {/* Dropdown children */}
+                      {item.children && item.children.length > 0 && (
+                        <div className="ml-8 mt-1 space-y-0.5 border-l-2 border-muted pl-3">
+                          {item.children.map((child, ci) => (
+                            <div key={ci} className="flex items-center gap-2 rounded border px-2 py-1.5 text-sm">
+                              {child.repoId ? <Github className="h-3 w-3 text-muted-foreground" /> : <Link2 className="h-3 w-3 text-muted-foreground" />}
+                              <span className="flex-1 truncate text-xs">{child.label}</span>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={()=>{
+                                const u=[...topMenu]; u[i]={...u[i],children:(u[i].children||[]).filter((_,j)=>j!==ci)}; setTopMenu(u); setTopMenuDirty(true);
+                              }}><Trash2 className="h-3 w-3" /></Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -504,12 +549,30 @@ export default function SiteDetailPage() {
                   <h3 className="font-bold">Add to Top Bar</h3>
                   <button onClick={()=>setShowTopMenuAdd(false)}><X className="h-4 w-4" /></button>
                 </div>
-                <div className="flex gap-2 mb-4">
-                  <button onClick={()=>setTopAddType("page")} className={`rounded border px-3 py-1.5 text-xs font-medium flex-1 ${topAddType==="page"?"border-primary bg-primary/10 text-primary":"hover:bg-muted"}`}>Page</button>
-                  <button onClick={()=>setTopAddType("link")} className={`rounded border px-3 py-1.5 text-xs font-medium flex-1 ${topAddType==="link"?"border-primary bg-primary/10 text-primary":"hover:bg-muted"}`}>External Link</button>
+                <div className="grid grid-cols-4 gap-1.5 mb-4 p-1 bg-muted/50 rounded-lg">
+                  {([
+                    {id:"repo"as const, l:"Repository", ic:Github},
+                    {id:"page"as const, l:"Page", ic:FileText},
+                    {id:"dropdown"as const, l:"Dropdown", ic:FolderOpen},
+                    {id:"link"as const, l:"Link", ic:Link2},
+                  ]).map(t=>(
+                    <button key={t.id} onClick={()=>setTopAddType(t.id)} className={`flex flex-col items-center gap-1 rounded-md px-2 py-2 text-xs font-medium transition-all ${topAddType===t.id?"bg-background shadow-sm text-primary":"text-muted-foreground"}`}><t.ic className="h-4 w-4" />{t.l}</button>
+                  ))}
                 </div>
+                {topEditDropdown !== null && <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2 mb-3">Adding sub-item to <strong>{topMenu[topEditDropdown]?.label}</strong></p>}
                 <div className="space-y-3">
-                  {topAddType === "page" ? (
+                  {topAddType === "repo" && (
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">Repository</label>
+                      <p className="text-xs text-muted-foreground mb-2">Adds a tab that shows this repo&apos;s content with its own sidebar navigation.</p>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" value={topAddRepoId} onChange={e=>setTopAddRepoId(e.target.value)}>
+                        <option value="">Select repository...</option>
+                        {repos.map(r=><option key={r.id} value={r.id}>{r.owner}/{r.repo} ({r._count.pages} pages)</option>)}
+                      </select>
+                      {repos.length===0 && <p className="text-xs text-amber-600 mt-1">No repos connected. Connect one in the Content tab first.</p>}
+                    </div>
+                  )}
+                  {topAddType === "page" && (
                     <div>
                       <label className="text-sm font-medium mb-1.5 block">Page</label>
                       <select className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" value={topAddPageId} onChange={e=>setTopAddPageId(e.target.value)}>
@@ -517,7 +580,15 @@ export default function SiteDetailPage() {
                         {pages.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}
                       </select>
                     </div>
-                  ) : (
+                  )}
+                  {topAddType === "dropdown" && (
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">Dropdown Label</label>
+                      <p className="text-xs text-muted-foreground mb-2">Creates a menu item with a dropdown. Add sub-items after creating it.</p>
+                      <Input value={topAddLabel} onChange={e=>setTopAddLabel(e.target.value)} placeholder="e.g. IDS Assets" className="h-10" autoFocus />
+                    </div>
+                  )}
+                  {topAddType === "link" && (
                     <>
                       <div><label className="text-sm font-medium mb-1.5 block">Label</label><Input value={topAddLabel} onChange={e=>setTopAddLabel(e.target.value)} placeholder="Link text" className="h-10" /></div>
                       <div><label className="text-sm font-medium mb-1.5 block">URL</label><Input value={topAddUrl} onChange={e=>setTopAddUrl(e.target.value)} placeholder="https://..." className="h-10" /></div>
