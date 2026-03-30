@@ -85,7 +85,7 @@ export default function SiteDetailPage() {
 
   // Appearance
   const [form, setForm] = useState({
-    primaryColor: "#3b82f6", defaultTheme: "SYSTEM", headerLayout: "default",
+    primaryColor: "#3b82f6", accentColor: "", defaultTheme: "SYSTEM", headerLayout: "default",
   });
   const [logo, setLogo] = useState<string|null>(null);
   const [formSaving, setFormSaving] = useState(false);
@@ -122,7 +122,7 @@ export default function SiteDetailPage() {
     if (sRes.ok) {
       const s = await sRes.json();
       setSpace(s);
-      setForm({ primaryColor: s.primaryColor||"#3b82f6", defaultTheme: s.defaultTheme||"SYSTEM", headerLayout: s.headerLayout||"default" });
+      setForm({ primaryColor: s.primaryColor||"#3b82f6", accentColor: s.accentColor||"", defaultTheme: s.defaultTheme||"SYSTEM", headerLayout: s.headerLayout||"default" });
       setSettings({ name: s.name||"", slug: s.slug||"", description: s.description||"", isPublic: s.isPublic!==false, seoTitle: s.seoTitle||"", seoDescription: s.seoDescription||"", customCss: s.customCss||"" });
       setLogo(s.org?.logo || null);
     }
@@ -452,16 +452,24 @@ export default function SiteDetailPage() {
           <Card>
             <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2"><ImageIcon className="h-4 w-4" />Logo</CardTitle></CardHeader>
             <CardContent className="space-y-3">
+              <p className="text-xs text-muted-foreground">Your logo appears in the top-left of the docs header. Replaces the default icon.</p>
               {logo ? (
-                <div className="flex items-center gap-4">
-                  <img src={logo} alt="Logo" className="h-16 w-auto max-w-[200px] rounded border object-contain bg-white p-1" />
-                  <Button variant="outline" size="sm" onClick={removeLogo}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Remove</Button>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4 p-3 rounded-lg border bg-muted/30">
+                    <div className="bg-white rounded p-2 border"><img src={logo} alt="Logo" className="h-10 w-auto max-w-[160px] object-contain" /></div>
+                    <div className="bg-zinc-900 rounded p-2 border border-zinc-700"><img src={logo} alt="Logo" className="h-10 w-auto max-w-[160px] object-contain" /></div>
+                    <Button variant="outline" size="sm" onClick={removeLogo}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Remove</Button>
+                  </div>
+                  <label className="text-xs text-primary cursor-pointer hover:underline inline-flex items-center gap-1">
+                    <Upload className="h-3 w-3" />Upload different logo
+                    <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </label>
                 </div>
               ) : (
-                <label className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
+                <label className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed p-8 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
                   <Upload className="h-8 w-8 text-muted-foreground" />
                   <span className="text-sm font-medium">Click to upload logo</span>
-                  <span className="text-xs text-muted-foreground">Recommended: 200x50px, PNG or SVG, max 2MB</span>
+                  <span className="text-xs text-muted-foreground">Recommended: 200 x 50px, PNG or SVG, max 2MB</span>
                   <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
                 </label>
               )}
@@ -470,15 +478,16 @@ export default function SiteDetailPage() {
 
           {/* Template */}
           <Card>
-            <CardHeader className="py-3"><CardTitle className="text-base">Template</CardTitle></CardHeader>
+            <CardHeader className="py-3"><CardTitle className="text-base">Layout Template</CardTitle></CardHeader>
             <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">Determines the positioning of sidebar, content area, and table of contents.</p>
               <div className="grid grid-cols-3 gap-3">
                 {TEMPLATES.map(t=>(
                   <button key={t.id} onClick={()=>setForm({...form,headerLayout:t.id})} className={`rounded-xl border-2 p-3 text-left transition-all ${form.headerLayout===t.id?"border-primary ring-2 ring-primary/20 bg-primary/5":"border-border hover:border-primary/40"}`}>
-                    <div className="h-12 rounded bg-muted/50 mb-2 flex p-1.5 gap-1">
-                      {t.id==="default"&&<><div className="w-1/4 bg-primary/10 rounded" /><div className="flex-1 flex flex-col gap-0.5"><div className="h-1.5 bg-primary/10 rounded w-3/4" /><div className="h-1 bg-muted rounded" /></div><div className="w-1/6 bg-muted rounded" /></>}
-                      {t.id==="modern"&&<div className="flex-1 flex flex-col gap-0.5"><div className="h-4 bg-primary/10 rounded" /><div className="h-1 bg-muted rounded w-3/4 mx-auto" /></div>}
-                      {t.id==="minimal"&&<div className="flex-1 flex flex-col items-center gap-0.5 pt-1"><div className="h-1.5 bg-primary/10 rounded w-1/2" /><div className="h-1 bg-muted rounded w-2/3" /></div>}
+                    <div className="h-16 rounded-lg bg-muted/50 mb-2 flex p-2 gap-1 overflow-hidden">
+                      {t.id==="default"&&<><div className="w-1/4 bg-primary/15 rounded-sm" /><div className="flex-1 flex flex-col gap-0.5 p-0.5"><div className="h-2 bg-primary/15 rounded-sm w-3/4" /><div className="h-1 bg-muted-foreground/10 rounded-sm" /><div className="h-1 bg-muted-foreground/10 rounded-sm w-5/6" /><div className="h-1 bg-muted-foreground/10 rounded-sm w-4/6" /></div><div className="w-1/6 bg-muted-foreground/5 rounded-sm" /></>}
+                      {t.id==="modern"&&<div className="flex-1 flex flex-col gap-0.5"><div className="h-5 bg-primary/15 rounded-sm w-full" /><div className="flex gap-1 flex-1"><div className="w-1/4 bg-muted-foreground/5 rounded-sm" /><div className="flex-1 flex flex-col gap-0.5 p-0.5"><div className="h-1 bg-muted-foreground/10 rounded-sm w-3/4" /><div className="h-1 bg-muted-foreground/10 rounded-sm" /></div></div></div>}
+                      {t.id==="minimal"&&<div className="flex-1 flex flex-col items-center gap-0.5 pt-2"><div className="h-2 bg-primary/15 rounded-sm w-2/5" /><div className="h-1 bg-muted-foreground/10 rounded-sm w-3/5" /><div className="h-1 bg-muted-foreground/10 rounded-sm w-2/5" /><div className="h-1 bg-muted-foreground/10 rounded-sm w-3/5" /></div>}
                     </div>
                     <p className="text-xs font-semibold">{t.name}</p>
                     <p className="text-[10px] text-muted-foreground">{t.desc}</p>
@@ -490,29 +499,61 @@ export default function SiteDetailPage() {
 
           {/* Colors */}
           <Card>
-            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2"><Palette className="h-4 w-4" />Colors & Theme</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
+            <CardHeader className="py-3"><CardTitle className="text-base flex items-center gap-2"><Palette className="h-4 w-4" />Colors</CardTitle></CardHeader>
+            <CardContent className="space-y-5">
               <div>
-                <label className="text-xs font-medium mb-2 block text-muted-foreground uppercase tracking-wider">Primary Color</label>
+                <label className="text-sm font-medium mb-2 block">Primary Color</label>
+                <p className="text-xs text-muted-foreground mb-2">Used for links, active states, sidebar highlights, and default icon color.</p>
                 <div className="flex gap-2 flex-wrap items-center">
                   {COLORS.map(c=><button key={c.n} onClick={()=>setForm({...form,primaryColor:c.v})} className={`h-8 w-8 rounded-full border-2 transition-all ${form.primaryColor===c.v?"border-foreground scale-110 ring-2 ring-offset-2 ring-primary/30":"border-transparent hover:scale-105"}`} style={{backgroundColor:c.v}} title={c.n} />)}
                   <input type="color" value={form.primaryColor} onChange={e=>setForm({...form,primaryColor:e.target.value})} className="h-8 w-8 rounded border cursor-pointer ml-1" />
                   <span className="text-xs text-muted-foreground font-mono ml-1">{form.primaryColor}</span>
                 </div>
               </div>
+
               <div>
-                <label className="text-xs font-medium mb-2 block text-muted-foreground uppercase tracking-wider">Theme</label>
-                <div className="flex gap-2">
-                  {[{id:"LIGHT",l:"Light"},{id:"DARK",l:"Dark"},{id:"SYSTEM",l:"Auto"}].map(t=>(
-                    <button key={t.id} onClick={()=>setForm({...form,defaultTheme:t.id})} className={`rounded-lg border-2 px-4 py-2 text-sm font-medium transition-all ${form.defaultTheme===t.id?"border-primary bg-primary/5 text-primary":"border-border hover:border-primary/30"}`}>{t.l}</button>
-                  ))}
+                <label className="text-sm font-medium mb-2 block">Header Background</label>
+                <p className="text-xs text-muted-foreground mb-2">Set a color to create a branded header bar. Leave empty for default (white/dark based on theme).</p>
+                <div className="flex gap-2 flex-wrap items-center">
+                  <button onClick={()=>setForm({...form,accentColor:""})} className={`h-8 px-3 rounded-full border-2 text-xs font-medium transition-all ${!form.accentColor?"border-foreground ring-2 ring-offset-2 ring-primary/30":"border-border hover:border-primary/30"}`}>Default</button>
+                  {COLORS.map(c=><button key={c.n} onClick={()=>setForm({...form,accentColor:c.v})} className={`h-8 w-8 rounded-full border-2 transition-all ${form.accentColor===c.v?"border-foreground scale-110 ring-2 ring-offset-2 ring-primary/30":"border-transparent hover:scale-105"}`} style={{backgroundColor:c.v}} title={c.n} />)}
+                  {form.accentColor && <input type="color" value={form.accentColor} onChange={e=>setForm({...form,accentColor:e.target.value})} className="h-8 w-8 rounded border cursor-pointer ml-1" />}
+                  {form.accentColor && <span className="text-xs text-muted-foreground font-mono ml-1">{form.accentColor}</span>}
                 </div>
+                {/* Header preview */}
+                {form.accentColor && (
+                  <div className="mt-3 rounded-lg border overflow-hidden">
+                    <div className="h-10 flex items-center px-4 gap-2" style={{backgroundColor:form.accentColor}}>
+                      {logo ? <img src={logo} alt="" className="h-5 w-auto object-contain" /> : <div className="h-5 w-5 rounded bg-white/20" />}
+                      <span className="text-white text-xs font-semibold">{space?.name || "Your Site"}</span>
+                      <div className="ml-auto flex gap-2"><div className="h-4 w-16 rounded bg-white/15" /><div className="h-4 w-4 rounded bg-white/15" /></div>
+                    </div>
+                    <div className="h-6 bg-muted/30" />
+                  </div>
+                )}
               </div>
-              <Button onClick={saveAppearance} disabled={formSaving}>
-                {formSaved?<><Check className="mr-2 h-4 w-4" />Saved!</>:formSaving?<Loader2 className="mr-2 h-4 w-4 animate-spin" />:<><Save className="mr-2 h-4 w-4" />Save Appearance</>}
-              </Button>
             </CardContent>
           </Card>
+
+          {/* Theme */}
+          <Card>
+            <CardHeader className="py-3"><CardTitle className="text-base">Default Theme</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">The default color scheme visitors see. They can still toggle it.</p>
+              <div className="flex gap-2">
+                {[{id:"LIGHT",l:"Light",desc:"White background"},{id:"DARK",l:"Dark",desc:"Dark background"},{id:"SYSTEM",l:"Auto",desc:"Follow device setting"}].map(t=>(
+                  <button key={t.id} onClick={()=>setForm({...form,defaultTheme:t.id})} className={`rounded-xl border-2 px-4 py-3 text-left transition-all flex-1 ${form.defaultTheme===t.id?"border-primary bg-primary/5":"border-border hover:border-primary/30"}`}>
+                    <p className="text-sm font-semibold">{t.l}</p>
+                    <p className="text-[10px] text-muted-foreground">{t.desc}</p>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button onClick={saveAppearance} disabled={formSaving} className="w-full" size="lg">
+            {formSaved?<><Check className="mr-2 h-4 w-4" />Saved!</>:formSaving?<Loader2 className="mr-2 h-4 w-4 animate-spin" />:<><Save className="mr-2 h-4 w-4" />Save All Appearance Changes</>}
+          </Button>
         </div>
       )}
 
