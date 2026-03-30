@@ -7,6 +7,10 @@ import {
   LayoutDashboard,
   Layers,
   Globe,
+  Paintbrush,
+  FileText,
+  Github,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,6 +18,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Spaces", href: "/admin/spaces", icon: Layers },
+  { label: "Design", href: "/admin/design", icon: Paintbrush },
+  { label: "Pages", href: "/admin/pages", icon: FileText },
+  { label: "Repositories", href: "/admin/repositories", icon: Github },
+  { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
 export function AdminSidebar() {
@@ -21,7 +29,6 @@ export function AdminSidebar() {
 
   return (
     <aside className="hidden w-60 shrink-0 border-r bg-sidebar md:flex md:flex-col">
-      {/* Logo */}
       <div className="flex h-14 items-center gap-2 border-b px-4">
         <BookOpen className="h-5 w-5 text-primary" />
         <span className="font-semibold">Open Docs</span>
