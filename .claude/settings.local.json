@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vercel:*)",
+      "Bash(git -C /c/Users/AnilTurkmayali/Documents/GitHub/Renderitall log --oneline -3)"
+    ]
+  }
+}
