@@ -11,10 +11,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const query = searchParams.get("q") || "";
-  const page = parseInt(searchParams.get("page") || "1");
-  const perPage = 30;
+  const perPage = 50;
 
-  // Get the user's GitHub access token
   const account = await prisma.account.findFirst({
     where: { userId: session.user.id, provider: "github" },
   });
@@ -32,39 +30,57 @@ export async function GET(req: NextRequest) {
     let repos;
 
     if (query) {
-      // Search user's repos
+      // Search across all repos the user can access
       const { data } = await octokit.rest.search.repos({
-        q: `${query} user:${session.user.name || ""} fork:true`,
+        q: query,
         per_page: perPage,
-        page,
         sort: "updated",
+      });
+      repos = data.items;
+    } else {
+      // Fetch repos from all sources: personal + all orgs
+      const personalRepos = await octokit.rest.repos.listForAuthenticatedUser({
+        per_page: perPage,
+        sort: "updated",
+        direction: "desc",
+        affiliation: "owner,collaborator,organization_member",
       });
 
-      // Also search in orgs the user belongs to
-      const { data: orgData } = await octokit.rest.search.repos({
-        q: `${query} fork:true`,
-        per_page: perPage,
-        page,
-        sort: "updated",
-      });
+      // Also fetch org repos explicitly
+      let orgRepos: any[] = [];
+      try {
+        const { data: orgs } = await octokit.rest.orgs.listForAuthenticatedUser({
+          per_page: 20,
+        });
+        const orgPromises = orgs.map((org) =>
+          octokit.rest.repos.listForOrg({
+            org: org.login,
+            per_page: 30,
+            sort: "updated",
+            direction: "desc",
+          }).then((res) => res.data).catch(() => [])
+        );
+        const orgResults = await Promise.all(orgPromises);
+        orgRepos = orgResults.flat();
+      } catch {
+        // Org fetch failed — continue with personal repos
+      }
 
       // Merge and deduplicate
-      const allRepos = [...data.items, ...orgData.items];
+      const allRepos = [...personalRepos.data, ...orgRepos];
       const seen = new Set<number>();
       repos = allRepos.filter((r) => {
         if (seen.has(r.id)) return false;
         seen.add(r.id);
         return true;
-      }).slice(0, perPage);
-    } else {
-      // List repos the user has access to (includes org repos)
-      const { data } = await octokit.rest.repos.listForAuthenticatedUser({
-        per_page: perPage,
-        page,
-        sort: "updated",
-        direction: "desc",
       });
-      repos = data;
+
+      // Sort by updated_at
+      repos.sort((a, b) =>
+        new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()
+      );
+
+      repos = repos.slice(0, perPage);
     }
 
     const result = repos.map((repo) => ({

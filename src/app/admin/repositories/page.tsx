@@ -124,13 +124,23 @@ export default function RepositoriesPage() {
                         {repo._count.pages} pages
                       </Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                       <span className="flex items-center gap-1"><GitBranch className="h-3 w-3" />{repo.branch}</span>
                       <span>{repo.docsPath}</span>
                       <span>→ {repo.space.name}</span>
                       {repo.lastSyncAt && <span>· Synced {new Date(repo.lastSyncAt).toLocaleDateString()}</span>}
+                      {repo.lastSyncStatus === "ERROR" && (
+                        <Badge variant="destructive" className="text-[10px]">Sync failed</Badge>
+                      )}
+                      {repo.lastSyncStatus === "SYNCING" && (
+                        <Badge variant="warning" className="text-[10px]">Syncing...</Badge>
+                      )}
                     </div>
-                    {repo.lastSyncError && <p className="text-xs text-red-500 mt-1">{repo.lastSyncError}</p>}
+                    {repo.lastSyncError && (
+                      <p className="text-xs text-red-500 mt-1 bg-red-50 dark:bg-red-950/20 rounded px-2 py-1">
+                        {repo.lastSyncError}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <Button variant="outline" size="sm" onClick={() => handleSync(repo.id)} disabled={isSyncing}>

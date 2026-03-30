@@ -179,7 +179,27 @@ export async function syncRepository(repoId: string): Promise<SyncResult> {
   });
 
   try {
-    const octokit = createOctokit(repoConfig.accessToken || "");
+    // Ensure we have a valid access token — try the stored one first,
+    // then fall back to the user's OAuth token
+    let token = repoConfig.accessToken;
+    if (!token) {
+      // Find any org member's GitHub token as fallback
+      const orgMember = await prisma.orgMember.findFirst({
+        where: { orgId: repoConfig.space.orgId },
+        include: {
+          user: {
+            include: { accounts: { where: { provider: "github" }, take: 1 } },
+          },
+        },
+      });
+      token = orgMember?.user?.accounts?.[0]?.access_token || null;
+    }
+
+    if (!token) {
+      throw new Error("No GitHub access token available. Please reconnect the repository.");
+    }
+
+    const octokit = createOctokit(token);
     const { owner, repo, branch, docsPath, spaceId } = repoConfig;
     const spaceSlug = repoConfig.space.slug;
 
@@ -200,7 +220,8 @@ export async function syncRepository(repoId: string): Promise<SyncResult> {
         owner,
         repo,
         summaryFile.path,
-        branch
+        branch,
+        true
       );
       summaryEntries = parseSummaryMd(summaryContent.content);
     }
@@ -223,7 +244,8 @@ export async function syncRepository(repoId: string): Promise<SyncResult> {
           owner,
           repo,
           file.path,
-          branch
+          branch,
+          true // skip per-file commit lookups for speed
         );
 
         const slug = pathToSlug(file.path, docsPath);

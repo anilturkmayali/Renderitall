@@ -48,12 +48,17 @@ export async function fetchRepoTree(
     }));
 }
 
+/**
+ * Fetch file content from GitHub.
+ * skipCommitInfo=true skips the per-file commit lookup (much faster for bulk sync).
+ */
 export async function fetchFileContent(
   octokit: Octokit,
   owner: string,
   repo: string,
   path: string,
-  ref: string
+  ref: string,
+  skipCommitInfo = false
 ): Promise<GitHubFile> {
   const { data } = await octokit.rest.repos.getContent({
     owner,
@@ -69,26 +74,28 @@ export async function fetchFileContent(
   const raw = Buffer.from(data.content, "base64").toString("utf-8");
   const { data: frontmatter, content } = matter(raw);
 
-  // Get last commit info
   let lastCommitDate: string | undefined;
   let lastCommitAuthor: string | undefined;
-  try {
-    const commits = await octokit.rest.repos.listCommits({
-      owner,
-      repo,
-      path,
-      sha: ref,
-      per_page: 1,
-    });
-    if (commits.data.length > 0) {
-      lastCommitDate = commits.data[0].commit.committer?.date ?? undefined;
-      lastCommitAuthor =
-        commits.data[0].commit.author?.name ??
-        commits.data[0].author?.login ??
-        undefined;
+
+  if (!skipCommitInfo) {
+    try {
+      const commits = await octokit.rest.repos.listCommits({
+        owner,
+        repo,
+        path,
+        sha: ref,
+        per_page: 1,
+      });
+      if (commits.data.length > 0) {
+        lastCommitDate = commits.data[0].commit.committer?.date ?? undefined;
+        lastCommitAuthor =
+          commits.data[0].commit.author?.name ??
+          commits.data[0].author?.login ??
+          undefined;
+      }
+    } catch {
+      // Non-critical
     }
-  } catch {
-    // Non-critical — skip
   }
 
   return {
