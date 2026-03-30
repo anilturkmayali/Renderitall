@@ -2,9 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight, ChevronLeft, Pencil, Calendar } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getSidebarSections } from "@/lib/sidebar";
 import { MarkdownRenderer } from "@/components/reader/markdown-renderer";
 import { TableOfContents } from "@/components/reader/table-of-contents";
-import { DocSidebar, type SidebarSection } from "@/components/reader/doc-sidebar";
+import { DocSidebar } from "@/components/reader/doc-sidebar";
 import { MobileSidebar } from "@/components/reader/mobile-sidebar";
 import { formatDistanceToNow } from "date-fns";
 import type { Metadata } from "next";
@@ -61,124 +62,6 @@ async function getPage(spaceId: string, slug: string) {
   });
 }
 
-async function getSidebarFromNav(spaceId: string): Promise<SidebarSection[]> {
-  // First try NavItem-based navigation
-  const navItems = await prisma.navItem.findMany({
-    where: { spaceId, parentId: null },
-    orderBy: { position: "asc" },
-    include: {
-      children: {
-        orderBy: { position: "asc" },
-        include: {
-          children: {
-            orderBy: { position: "asc" },
-          },
-        },
-      },
-    },
-  });
-
-  if (navItems.length > 0) {
-    // Convert NavItems to sidebar sections
-    const sections: SidebarSection[] = [];
-    let currentSection: SidebarSection = { label: "", pages: [] };
-
-    for (const item of navItems) {
-      if (item.type === "SECTION") {
-        // Start a new section
-        if (currentSection.pages.length > 0 || currentSection.label) {
-          sections.push(currentSection);
-        }
-        currentSection = {
-          label: item.label,
-          pages: item.children.map((child) => ({
-            id: child.pageId || child.id,
-            title: child.label,
-            slug: "", // Will be resolved below
-            children: child.children?.map((grandchild) => ({
-              id: grandchild.pageId || grandchild.id,
-              title: grandchild.label,
-              slug: "",
-            })) || [],
-          })),
-        };
-      } else if (item.type === "PAGE") {
-        currentSection.pages.push({
-          id: item.pageId || item.id,
-          title: item.label,
-          slug: "",
-          children: item.children?.map((child) => ({
-            id: child.pageId || child.id,
-            title: child.label,
-            slug: "",
-          })) || [],
-        });
-      }
-    }
-    if (currentSection.pages.length > 0 || currentSection.label) {
-      sections.push(currentSection);
-    }
-
-    // Resolve slugs for pages
-    const allPageIds = new Set<string>();
-    for (const section of sections) {
-      for (const page of section.pages) {
-        allPageIds.add(page.id);
-        for (const child of page.children || []) {
-          allPageIds.add(child.id);
-        }
-      }
-    }
-
-    const pages = await prisma.page.findMany({
-      where: { id: { in: Array.from(allPageIds) } },
-      select: { id: true, slug: true },
-    });
-    const slugMap = new Map(pages.map((p) => [p.id, p.slug]));
-
-    for (const section of sections) {
-      for (const page of section.pages) {
-        page.slug = slugMap.get(page.id) || page.id;
-        for (const child of page.children || []) {
-          child.slug = slugMap.get(child.id) || child.id;
-        }
-      }
-    }
-
-    return sections;
-  }
-
-  // Fallback: build from page hierarchy
-  const pages = await prisma.page.findMany({
-    where: { spaceId, status: "PUBLISHED" },
-    orderBy: { position: "asc" },
-    select: { id: true, title: true, slug: true, parentId: true },
-  });
-
-  const topLevel = pages.filter((p) => !p.parentId);
-  const childMap = new Map<string, typeof pages>();
-  pages.forEach((p) => {
-    if (p.parentId) {
-      const existing = childMap.get(p.parentId) || [];
-      existing.push(p);
-      childMap.set(p.parentId, existing);
-    }
-  });
-
-  const sidebarPages = topLevel.map((p) => ({
-    id: p.id,
-    title: p.title,
-    slug: p.slug,
-    children: (childMap.get(p.id) || []).map((c) => ({
-      id: c.id,
-      title: c.title,
-      slug: c.slug,
-    })),
-  }));
-
-  return [{ label: "Documentation", pages: sidebarPages }];
-}
-
 async function getAdjacentPages(spaceId: string, currentPosition: number) {
   const [prev, next] = await Promise.all([
     prisma.page.findFirst({
@@ -205,7 +88,7 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
   if (!page) notFound();
 
   const [sections, adjacent] = await Promise.all([
-    getSidebarFromNav(space.id),
+    getSidebarSections(space.id),
     getAdjacentPages(space.id, page.position),
   ]);
 
