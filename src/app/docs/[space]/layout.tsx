@@ -18,11 +18,6 @@ const getSpaceData = unstable_cache(
       where: { slug, isPublic: true },
       include: {
         org: { select: { name: true, logo: true, logoDark: true } },
-        navItems: {
-          where: { parentId: null, type: "LINK" },
-          orderBy: { position: "asc" },
-          select: { label: true, url: true },
-        },
       },
     });
   },
@@ -61,8 +56,8 @@ export default async function DocsLayout({ children, params }: LayoutProps) {
   const logo = space?.org?.logo;
   const template = space?.headerLayout || "default";
 
-  // Top nav links (LINK type nav items at root level)
-  const topLinks = space?.navItems || [];
+  // Top nav links from footerLinks JSON field
+  const topLinks: { label: string; url: string }[] = Array.isArray(space?.footerLinks) ? (space.footerLinks as any[]) : [];
 
   const useColoredHeader = !!accentColor;
 
@@ -98,8 +93,8 @@ export default async function DocsLayout({ children, params }: LayoutProps) {
               </span>
             </Link>
 
-            {/* Top nav links — shown on Modern template or when links exist */}
-            {(template === "modern" || topLinks.length > 0) && topLinks.length > 0 && (
+            {/* Top nav links — always shown when items exist */}
+            {topLinks.length > 0 && (
               <nav className="hidden md:flex items-center gap-1 ml-4">
                 {topLinks.map((link, i) => (
                   <a

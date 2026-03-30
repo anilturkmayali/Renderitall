@@ -72,7 +72,7 @@ export default function SiteDetailPage() {
   const [syncing, setSyncing] = useState<Set<string>>(new Set());
   const [pageSearch, setPageSearch] = useState("");
 
-  // Menu
+  // Sidebar Menu
   const [navDirty, setNavDirty] = useState(false);
   const [navSaving, setNavSaving] = useState(false);
   const [addModal, setAddModal] = useState(false);
@@ -82,6 +82,17 @@ export default function SiteDetailPage() {
   const [addPageId, setAddPageId] = useState("");
   const [addLabel, setAddLabel] = useState("");
   const [addUrl, setAddUrl] = useState("");
+
+  // Top Bar Menu
+  interface TopMenuItem { label: string; url: string; pageId?: string }
+  const [topMenu, setTopMenu] = useState<TopMenuItem[]>([]);
+  const [topMenuDirty, setTopMenuDirty] = useState(false);
+  const [topMenuSaving, setTopMenuSaving] = useState(false);
+  const [showTopMenuAdd, setShowTopMenuAdd] = useState(false);
+  const [topAddLabel, setTopAddLabel] = useState("");
+  const [topAddUrl, setTopAddUrl] = useState("");
+  const [topAddPageId, setTopAddPageId] = useState("");
+  const [topAddType, setTopAddType] = useState<"page"|"link">("page");
 
   // Appearance
   const [form, setForm] = useState({
@@ -113,12 +124,14 @@ export default function SiteDetailPage() {
 
   async function loadAll() {
     setLoading(true);
-    const [sRes, rRes, pRes, nRes] = await Promise.all([
+    const [sRes, rRes, pRes, nRes, tmRes] = await Promise.all([
       fetch(`/api/admin/spaces/${id}`),
       fetch("/api/admin/repos"),
       fetch(`/api/admin/pages?spaceId=${id}`),
       fetch(`/api/admin/nav/${id}`),
+      fetch(`/api/admin/spaces/${id}/topmenu`),
     ]);
+    if (tmRes.ok) setTopMenu(await tmRes.json());
     if (sRes.ok) {
       const s = await sRes.json();
       setSpace(s);
@@ -238,6 +251,48 @@ export default function SiteDetailPage() {
     const res = await fetch(`/api/admin/nav/${id}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({items:navItems.map(strip)}) });
     if(res.ok) { setNavItems((await res.json()).map(mapNav)); setNavDirty(false); setPreviewKey(k=>k+1); }
     setNavSaving(false);
+  }
+
+  // ─── Top Menu actions ───────────────────────────────────────────
+
+  async function saveTopMenu() {
+    setTopMenuSaving(true);
+    await fetch(`/api/admin/spaces/${id}/topmenu`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: topMenu }),
+    });
+    setTopMenuDirty(false);
+    setTopMenuSaving(false);
+    setPreviewKey(k => k + 1);
+  }
+
+  function addTopMenuItem() {
+    if (topAddType === "page" && topAddPageId) {
+      const page = pages.find(p => p.id === topAddPageId);
+      if (page) {
+        setTopMenu([...topMenu, { label: page.title, url: `/docs/${space?.slug}/${page.slug}`, pageId: page.id }]);
+        setTopMenuDirty(true);
+      }
+    } else if (topAddType === "link" && topAddLabel && topAddUrl) {
+      setTopMenu([...topMenu, { label: topAddLabel, url: topAddUrl }]);
+      setTopMenuDirty(true);
+    }
+    setShowTopMenuAdd(false);
+    setTopAddLabel(""); setTopAddUrl(""); setTopAddPageId("");
+  }
+
+  function removeTopMenuItem(index: number) {
+    setTopMenu(topMenu.filter((_, i) => i !== index));
+    setTopMenuDirty(true);
+  }
+
+  function moveTopMenuItem(index: number, dir: "up" | "down") {
+    const items = [...topMenu];
+    const t = dir === "up" ? index - 1 : index + 1;
+    if (t < 0 || t >= items.length) return;
+    [items[index], items[t]] = [items[t], items[index]];
+    setTopMenu(items);
+    setTopMenuDirty(true);
   }
 
   // ─── Appearance actions ────────────────────────────────────────
@@ -391,8 +446,95 @@ export default function SiteDetailPage() {
 
       {/* ━━━ MENU TAB ━━━ */}
       {tab==="menu" && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+
+          {/* ── TOP BAR MENU ── */}
+          <Card>
+            <CardHeader className="py-3 flex flex-row items-center justify-between border-b">
+              <CardTitle className="text-base">Top Bar Menu</CardTitle>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={()=>{setTopAddType("page");setShowTopMenuAdd(true)}}><Plus className="mr-1.5 h-3.5 w-3.5" />Add Item</Button>
+                {topMenuDirty && <Button size="sm" onClick={saveTopMenu} disabled={topMenuSaving}>{topMenuSaving?<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />:<Save className="mr-1.5 h-3.5 w-3.5" />}Save Top Menu</Button>}
+              </div>
+            </CardHeader>
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground mb-3">These links appear horizontally in the header bar of your site.</p>
+              {topMenu.length === 0 ? (
+                <div className="py-4 text-center text-muted-foreground text-sm">No top bar items. Click &quot;Add Item&quot; to add links or pages to the header.</div>
+              ) : (
+                <div className="space-y-1">
+                  {topMenu.map((item, i) => (
+                    <div key={i} className="flex items-center gap-3 rounded border px-3 py-2">
+                      <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium block truncate">{item.label}</span>
+                        <span className="text-xs text-muted-foreground truncate block">{item.url}</span>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"up")} disabled={i===0}><ChevronUp className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"down")} disabled={i===topMenu.length-1}><ChevronDown className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={()=>removeTopMenuItem(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* Mini preview of how the top bar looks */}
+              {topMenu.length > 0 && (
+                <div className="mt-3 rounded-lg border overflow-hidden">
+                  <div className="h-10 flex items-center px-4 gap-3 bg-muted/30">
+                    <div className="h-5 w-5 rounded bg-primary/20" />
+                    <span className="text-xs font-semibold text-muted-foreground">{space?.name}</span>
+                    <div className="flex gap-1 ml-2">
+                      {topMenu.map((item, i) => (
+                        <span key={i} className="px-2 py-0.5 text-[10px] rounded bg-background border">{item.label}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Add Top Menu Item Modal */}
+          {showTopMenuAdd && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="w-full max-w-sm rounded-xl border bg-background p-5 shadow-2xl mx-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold">Add to Top Bar</h3>
+                  <button onClick={()=>setShowTopMenuAdd(false)}><X className="h-4 w-4" /></button>
+                </div>
+                <div className="flex gap-2 mb-4">
+                  <button onClick={()=>setTopAddType("page")} className={`rounded border px-3 py-1.5 text-xs font-medium flex-1 ${topAddType==="page"?"border-primary bg-primary/10 text-primary":"hover:bg-muted"}`}>Page</button>
+                  <button onClick={()=>setTopAddType("link")} className={`rounded border px-3 py-1.5 text-xs font-medium flex-1 ${topAddType==="link"?"border-primary bg-primary/10 text-primary":"hover:bg-muted"}`}>External Link</button>
+                </div>
+                <div className="space-y-3">
+                  {topAddType === "page" ? (
+                    <div>
+                      <label className="text-sm font-medium mb-1.5 block">Page</label>
+                      <select className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" value={topAddPageId} onChange={e=>setTopAddPageId(e.target.value)}>
+                        <option value="">Select page...</option>
+                        {pages.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}
+                      </select>
+                    </div>
+                  ) : (
+                    <>
+                      <div><label className="text-sm font-medium mb-1.5 block">Label</label><Input value={topAddLabel} onChange={e=>setTopAddLabel(e.target.value)} placeholder="Link text" className="h-10" /></div>
+                      <div><label className="text-sm font-medium mb-1.5 block">URL</label><Input value={topAddUrl} onChange={e=>setTopAddUrl(e.target.value)} placeholder="https://..." className="h-10" /></div>
+                    </>
+                  )}
+                </div>
+                <div className="flex justify-end gap-2 mt-5">
+                  <Button variant="outline" size="sm" onClick={()=>setShowTopMenuAdd(false)}>Cancel</Button>
+                  <Button size="sm" onClick={addTopMenuItem}><Plus className="mr-1.5 h-3.5 w-3.5" />Add</Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── SIDEBAR MENU ── */}
           <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Sidebar Menu</h2>
             <div className="flex gap-2">
               <Button size="sm" onClick={()=>openAdd(null)}><Plus className="mr-1.5 h-3.5 w-3.5" />Add Item</Button>
               {repos.length>0 && (
