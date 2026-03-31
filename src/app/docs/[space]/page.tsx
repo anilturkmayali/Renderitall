@@ -5,6 +5,7 @@ import { getSidebarSections } from "@/lib/sidebar";
 import { BookOpen, FileText, ChevronRight } from "lucide-react";
 import { DocSidebar } from "@/components/reader/doc-sidebar";
 import { MobileSidebar } from "@/components/reader/mobile-sidebar";
+import { CollapsibleSidebar } from "@/components/reader/collapsible-sidebar";
 import { unstable_cache } from "next/cache";
 
 export const revalidate = 60;
@@ -56,11 +57,9 @@ export default async function DocsHomePage({
           <MobileSidebar spaceSlug={spaceSlug} sections={sections} />
         </div>
 
-        <aside className="hidden w-64 shrink-0 border-r bg-sidebar md:block">
-          <div className="sticky top-14 h-[calc(100vh-3.5rem)]">
-            <DocSidebar spaceSlug={spaceSlug} sections={sections} />
-          </div>
-        </aside>
+        <CollapsibleSidebar>
+          <DocSidebar spaceSlug={spaceSlug} sections={sections} />
+        </CollapsibleSidebar>
 
         <main className="flex-1 min-w-0">
           <div className="mx-auto max-w-4xl px-6 py-8 lg:px-8">
@@ -98,11 +97,9 @@ export default async function DocsHomePage({
         <MobileSidebar spaceSlug={spaceSlug} sections={sections} />
       </div>
 
-      <aside className="hidden w-64 shrink-0 border-r bg-sidebar md:block">
-        <div className="sticky top-14 h-[calc(100vh-3.5rem)]">
-          <DocSidebar spaceSlug={spaceSlug} sections={sections} />
-        </div>
-      </aside>
+      <CollapsibleSidebar>
+        <DocSidebar spaceSlug={spaceSlug} sections={sections} />
+      </CollapsibleSidebar>
 
       <main className="flex-1 min-w-0">
         <div className="mx-auto max-w-3xl px-6 py-12 lg:px-8">

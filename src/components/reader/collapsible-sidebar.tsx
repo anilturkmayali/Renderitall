@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { PanelLeftClose, PanelLeft } from "lucide-react";
+import { ChevronsLeft, ChevronsRight } from "lucide-react";
 
 export function CollapsibleSidebar({
   children,
@@ -14,32 +14,41 @@ export function CollapsibleSidebar({
 
   return (
     <>
-      {/* Sidebar */}
-      <aside
-        className={`hidden shrink-0 border-r bg-sidebar md:block transition-all duration-200 relative ${
-          open ? "w-64" : "w-0 overflow-hidden border-r-0"
-        }`}
+      {/* Sidebar wrapper */}
+      <div
+        className="hidden md:block shrink-0 border-r bg-sidebar transition-all duration-200 relative"
+        style={{ width: open ? 256 : 0, minWidth: open ? 256 : 0, borderRightWidth: open ? 1 : 0 }}
       >
-        <div className="sticky top-14 h-[calc(100vh-3.5rem)] w-64">
+        {/* Sidebar content */}
+        <div className="sticky top-14 h-[calc(100vh-3.5rem)] w-64 overflow-y-auto overflow-x-hidden">
           {children}
+          {/* Collapse button at bottom of sidebar */}
+          <div className="border-t p-2">
+            <button
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <ChevronsLeft className="h-3.5 w-3.5" />
+              Collapse sidebar
+            </button>
+          </div>
         </div>
-      </aside>
+      </div>
 
-      {/* Toggle button — positioned at the edge of the sidebar */}
-      <button
-        onClick={() => setOpen(!open)}
-        className={`fixed z-30 hidden md:flex items-center justify-center h-7 w-7 rounded-full border bg-background shadow-md text-muted-foreground hover:text-foreground hover:shadow-lg transition-all ${
-          open ? "left-[248px]" : "left-3"
-        }`}
-        style={{ top: "4.25rem" }}
-        title={open ? "Collapse sidebar" : "Expand sidebar"}
-      >
-        {open ? (
-          <PanelLeftClose className="h-3.5 w-3.5" />
-        ) : (
-          <PanelLeft className="h-3.5 w-3.5" />
-        )}
-      </button>
+      {/* Expand button — shown when sidebar is collapsed */}
+      {!open && (
+        <div className="hidden md:block shrink-0">
+          <div className="sticky top-14 p-2">
+            <button
+              onClick={() => setOpen(true)}
+              className="flex items-center justify-center h-8 w-8 rounded-md border bg-background shadow-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Expand sidebar"
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
