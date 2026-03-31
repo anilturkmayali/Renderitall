@@ -10,6 +10,7 @@ import {
   Settings,
   Users,
   BookOpen,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,6 +20,7 @@ const navItems = [
   { label: "Sites", href: "/admin/spaces", icon: Layers },
   { label: "Custom Pages", href: "/admin/pages", icon: FileText },
   { label: "Import from GitHub", href: "/admin/repositories", icon: Github },
+  { label: "Analytics", href: "/admin/analytics", icon: BarChart3 },
   { label: "Team", href: "/admin/team", icon: Users },
   { label: "Settings", href: "/admin/settings", icon: Settings },
   { label: "Guide", href: "/admin/guide", icon: BookOpen },

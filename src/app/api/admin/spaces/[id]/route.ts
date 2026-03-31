@@ -56,6 +56,7 @@ export async function PUT(
       seoTitle: body.seoTitle,
       seoDescription: body.seoDescription,
       icon: body.icon,
+      analyticsId: body.font,
     },
   });
 

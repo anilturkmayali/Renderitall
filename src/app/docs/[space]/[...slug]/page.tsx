@@ -8,6 +8,7 @@ import { TableOfContents } from "@/components/reader/table-of-contents";
 import { DocSidebar } from "@/components/reader/doc-sidebar";
 import { MobileSidebar } from "@/components/reader/mobile-sidebar";
 import { CollapsibleSidebar } from "@/components/reader/collapsible-sidebar";
+import { PdfButton } from "@/components/reader/pdf-button";
 import { formatDistanceToNow } from "date-fns";
 import { unstable_cache } from "next/cache";
 import type { Metadata } from "next";
@@ -202,11 +203,14 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
           </span>
         )}
         {page.commitAuthor && <span>by {page.commitAuthor}</span>}
-        {editUrl && (
-          <Link href={editUrl} target="_blank" className="ml-auto flex items-center gap-1.5 hover:text-foreground transition-colors">
-            <Pencil className="h-3.5 w-3.5" />Edit this page
-          </Link>
-        )}
+        <div className="ml-auto flex items-center gap-4">
+          <PdfButton />
+          {editUrl && (
+            <Link href={editUrl} target="_blank" className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+              <Pencil className="h-3.5 w-3.5" />Edit this page
+            </Link>
+          )}
+        </div>
       </div>
 
       <MarkdownRenderer content={content} />

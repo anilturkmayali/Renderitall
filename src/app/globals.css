@@ -104,3 +104,13 @@
 .callout-tip {
   @apply border-green-500 bg-green-50 dark:bg-green-950/30;
 }
+
+/* Print styles for PDF export */
+@media print {
+  header, aside, nav, .fixed, button, .no-print { display: none !important; }
+  main { margin: 0 !important; padding: 1rem !important; max-width: 100% !important; }
+  .prose { max-width: 100% !important; }
+  body { background: white !important; color: black !important; }
+  a { color: inherit !important; text-decoration: underline !important; }
+  pre { white-space: pre-wrap !important; word-break: break-all !important; }
+}

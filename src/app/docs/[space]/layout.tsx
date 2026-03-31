@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchCommand } from "@/components/search-command";
+import { PageTracker } from "@/components/reader/page-tracker";
 import { unstable_cache } from "next/cache";
 import type { Metadata } from "next";
 
@@ -60,9 +61,18 @@ export default async function DocsLayout({ children, params }: LayoutProps) {
   const topLinks: { label: string; url: string }[] = Array.isArray(space?.footerLinks) ? (space.footerLinks as any[]) : [];
 
   const useColoredHeader = !!accentColor;
+  const font = space?.analyticsId || ""; // analyticsId stores font name
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" style={font ? { fontFamily: `"${font}", sans-serif` } : undefined}>
+      {/* Google Font */}
+      {font && (
+        <link
+          rel="stylesheet"
+          href={`https://fonts.googleapis.com/css2?family=${encodeURIComponent(font)}:wght@300;400;500;600;700&display=swap`}
+        />
+      )}
+
       {/* Theme CSS */}
       <style dangerouslySetInnerHTML={{ __html: `
         :root { --site-primary: ${primaryColor}; --site-accent: ${accentColor || primaryColor}; }
@@ -159,6 +169,9 @@ export default async function DocsLayout({ children, params }: LayoutProps) {
 
       {/* Content — layout varies by template */}
       <div className="flex">{children}</div>
+
+      {/* Analytics tracking */}
+      <PageTracker spaceSlug={spaceSlug} />
     </div>
   );
 }

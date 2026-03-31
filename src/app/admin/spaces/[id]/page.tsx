@@ -97,7 +97,7 @@ export default function SiteDetailPage() {
 
   // Appearance
   const [form, setForm] = useState({
-    primaryColor: "#3b82f6", accentColor: "", defaultTheme: "SYSTEM", headerLayout: "default",
+    primaryColor: "#3b82f6", accentColor: "", defaultTheme: "SYSTEM", headerLayout: "default", font: "",
   });
   const [logo, setLogo] = useState<string|null>(null);
   const [formSaving, setFormSaving] = useState(false);
@@ -136,7 +136,7 @@ export default function SiteDetailPage() {
     if (sRes.ok) {
       const s = await sRes.json();
       setSpace(s);
-      setForm({ primaryColor: s.primaryColor||"#3b82f6", accentColor: s.accentColor||"", defaultTheme: s.defaultTheme||"SYSTEM", headerLayout: s.headerLayout||"default" });
+      setForm({ primaryColor: s.primaryColor||"#3b82f6", accentColor: s.accentColor||"", defaultTheme: s.defaultTheme||"SYSTEM", headerLayout: s.headerLayout||"default", font: s.analyticsId||"" });
       setSettings({ name: s.name||"", slug: s.slug||"", description: s.description||"", isPublic: s.isPublic!==false, seoTitle: s.seoTitle||"", seoDescription: s.seoDescription||"", customCss: s.customCss||"" });
       setLogo(s.org?.logo || null);
       setHomepageId(s.icon || null); // icon field stores homepage ID
@@ -817,8 +817,31 @@ export default function SiteDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Font */}
+          <Card>
+            <CardHeader className="py-3"><CardTitle className="text-base">Font</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">Choose a Google Font for your documentation site. Leave empty for the default system font.</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {["", "Inter", "Roboto", "Open Sans", "Lato", "Poppins", "Nunito", "Merriweather", "Source Sans 3", "IBM Plex Sans", "DM Sans"].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setForm({...form, font: f})}
+                    className={`rounded-md border px-3 py-2 text-sm transition-all ${form.font === f ? "border-primary bg-primary/5 text-primary" : "hover:bg-muted"}`}
+                    style={f ? { fontFamily: `"${f}", sans-serif` } : undefined}
+                  >
+                    {f || "System Default"}
+                  </button>
+                ))}
+              </div>
+              {form.font && (
+                <p className="text-xs text-muted-foreground">Selected: <strong>{form.font}</strong> — preview text will use this font after saving.</p>
+              )}
+            </CardContent>
+          </Card>
+
           <Button onClick={saveAppearance} disabled={formSaving} className="w-full" size="lg">
-            {formSaved?<><Check className="mr-2 h-4 w-4" />Saved!</>:formSaving?<Loader2 className="mr-2 h-4 w-4 animate-spin" />:<><Save className="mr-2 h-4 w-4" />Save All Appearance Changes</>}
+            {formSaved?<><Check className="mr-2 h-4 w-4" />Saved!</>:formSaving?<Loader2 className="mr-2 h-4 w-4 animate-spin" />:<><Save className="mr-2 h-4 w-4" />Save Appearance</>}
           </Button>
         </div>
       )}
@@ -862,6 +885,9 @@ export default function SiteDetailPage() {
             <div className="flex items-center justify-between"><div><p className="font-medium text-sm">Delete this site</p><p className="text-xs text-muted-foreground">All pages, repos, navigation permanently deleted.</p></div>
             <Button variant="destructive" size="sm" onClick={deleteSite}><Trash2 className="mr-1.5 h-3.5 w-3.5" />Delete Site</Button></div>
           </CardContent></Card>
+
+          {/* Broken Link Detection */}
+          <BrokenLinkChecker spaceId={id} />
         </div>
       )}
 
@@ -970,5 +996,54 @@ function _Unused({spaceId,onClose,onDone}:{spaceId:string;onClose:()=>void;onDon
         </div>}
       </div>
     </div>
+  );
+}
+
+// ─── Broken Link Checker Component ──────────────────────────────────────────
+
+function BrokenLinkChecker({ spaceId }: { spaceId: string }) {
+  const [checking, setChecking] = useState(false);
+  const [results, setResults] = useState<any>(null);
+
+  async function runCheck() {
+    setChecking(true);
+    setResults(null);
+    const res = await fetch(`/api/admin/spaces/${spaceId}/check-links`);
+    if (res.ok) setResults(await res.json());
+    setChecking(false);
+  }
+
+  return (
+    <Card>
+      <CardHeader className="py-3 flex flex-row items-center justify-between">
+        <CardTitle className="text-base">Broken Link Detection</CardTitle>
+        <Button size="sm" variant="outline" onClick={runCheck} disabled={checking}>
+          {checking ? <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />Checking...</> : <><Search className="mr-1.5 h-3.5 w-3.5" />Check Links</>}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {!results && !checking && <p className="text-sm text-muted-foreground">Click &quot;Check Links&quot; to scan all pages for broken links.</p>}
+        {results && (
+          <div className="space-y-3">
+            <p className="text-sm font-medium">{results.totalLinks}</p>
+            {results.broken && results.broken.length > 0 ? (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {results.broken.map((b: any, i: number) => (
+                  <div key={i} className="flex items-start gap-2 rounded border p-3 text-sm">
+                    <Badge variant={b.type === "internal" ? "warning" : "destructive"} className="text-[10px] shrink-0 mt-0.5">{b.type}</Badge>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{b.link}</p>
+                      <p className="text-xs text-muted-foreground">Found in: {b.page} (/{b.pageSlug})</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-green-600">All links are valid.</p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
