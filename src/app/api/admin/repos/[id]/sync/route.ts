@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { syncRepository } from "@/lib/sync";
 
+// Allow up to 60 seconds for sync (Vercel Pro) or 10s (free tier)
+export const maxDuration = 60;
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

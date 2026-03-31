@@ -250,93 +250,65 @@ export async function syncRepository(repoId: string): Promise<SyncResult> {
       },
     });
 
-    for (const file of mdFiles) {
-      try {
-        const fileData = await fetchFileContent(
-          octokit,
-          owner,
-          repo,
-          file.path,
-          branch,
-          true // skip per-file commit lookups for speed
-        );
+    // Process files in parallel batches of 5 for speed
+    const BATCH_SIZE = 5;
+    for (let batchStart = 0; batchStart < mdFiles.length; batchStart += BATCH_SIZE) {
+      const batch = mdFiles.slice(batchStart, batchStart + BATCH_SIZE);
 
-        const slug = pathToSlug(file.path, docsPath);
-        const title =
-          (fileData.frontmatter?.title as string) || slugToTitle(slug);
+      const results = await Promise.allSettled(
+        batch.map(async (file) => {
+          const fileData = await fetchFileContent(octokit, owner, repo, file.path, branch, true);
+          const slug = pathToSlug(file.path, docsPath);
+          const title = (fileData.frontmatter?.title as string) || slugToTitle(slug);
 
-        // Rewrite links and images
-        let processedContent = rewriteImageUrls(
-          fileData.content,
-          file.path,
-          owner,
-          repo,
-          branch
-        );
-        processedContent = rewriteMarkdownLinks(
-          processedContent,
-          file.path,
-          docsPath,
-          spaceSlug
-        );
+          let processedContent = rewriteImageUrls(fileData.content, file.path, owner, repo, branch);
+          processedContent = rewriteMarkdownLinks(processedContent, file.path, docsPath, spaceSlug);
+          const fm = JSON.parse(JSON.stringify(fileData.frontmatter || {}));
 
-        const fm = JSON.parse(JSON.stringify(fileData.frontmatter || {}));
+          return { file, slug, title, processedContent, fm, fileData };
+        })
+      );
 
-        const page = await prisma.page.upsert({
-          where: {
-            spaceId_slug: { spaceId, slug },
-          },
-          update: {
-            title,
-            content: processedContent,
-            frontmatter: fm,
-            githubPath: file.path,
-            githubSha: fileData.sha,
-            commitDate: fileData.lastCommitDate
-              ? new Date(fileData.lastCommitDate)
-              : undefined,
-            commitAuthor: fileData.lastCommitAuthor,
-            lastSyncedAt: new Date(),
-            status: "PUBLISHED",
-            position: pagessynced,
-          },
-          create: {
-            spaceId,
-            githubRepoId: repoId,
-            title,
-            slug,
-            content: processedContent,
-            frontmatter: fm,
-            githubPath: file.path,
-            githubSha: fileData.sha,
-            source: "GITHUB",
-            status: "PUBLISHED",
-            commitDate: fileData.lastCommitDate
-              ? new Date(fileData.lastCommitDate)
-              : undefined,
-            commitAuthor: fileData.lastCommitAuthor,
-            lastSyncedAt: new Date(),
-            position: pagessynced,
-          },
-        });
-
-        pageMap.set(file.path, page.id);
-        pagessynced++;
-
-        // Update progress every 3 files (to reduce DB writes)
-        if (pagessynced % 3 === 0 || pagessynced === totalFiles) {
-          await prisma.gitHubRepo.update({
-            where: { id: repoId },
-            data: {
-              pageCount: pagessynced,
-              config: { ...(typeof repoConfig.config === "object" && repoConfig.config ? repoConfig.config as any : {}), syncProgress: { synced: pagessynced, total: totalFiles } } as any,
-            },
-          });
+      // Upsert successful results sequentially (Prisma doesn't like parallel upserts on same table)
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          const { file, slug, title, processedContent, fm, fileData } = result.value;
+          try {
+            const page = await prisma.page.upsert({
+              where: { spaceId_slug: { spaceId, slug } },
+              update: {
+                title, content: processedContent, frontmatter: fm,
+                githubPath: file.path, githubSha: fileData.sha,
+                commitDate: fileData.lastCommitDate ? new Date(fileData.lastCommitDate) : undefined,
+                commitAuthor: fileData.lastCommitAuthor, lastSyncedAt: new Date(),
+                status: "PUBLISHED", position: pagessynced,
+              },
+              create: {
+                spaceId, githubRepoId: repoId, title, slug,
+                content: processedContent, frontmatter: fm,
+                githubPath: file.path, githubSha: fileData.sha,
+                source: "GITHUB", status: "PUBLISHED",
+                commitDate: fileData.lastCommitDate ? new Date(fileData.lastCommitDate) : undefined,
+                commitAuthor: fileData.lastCommitAuthor, lastSyncedAt: new Date(),
+                position: pagessynced,
+              },
+            });
+            pageMap.set(file.path, page.id);
+          } catch (err) {
+            console.error(`Failed to upsert ${file.path}:`, err);
+          }
         }
-      } catch (err) {
-        console.error(`Failed to sync file ${file.path}:`, err);
-        pagessynced++; // still count it for progress
+        pagessynced++;
       }
+
+      // Update progress after each batch
+      await prisma.gitHubRepo.update({
+        where: { id: repoId },
+        data: {
+          pageCount: pagessynced,
+          config: { ...(typeof repoConfig.config === "object" && repoConfig.config ? repoConfig.config as any : {}), syncProgress: { synced: pagessynced, total: totalFiles } } as any,
+        },
+      });
     }
 
     // Step 4: Build navigation from SUMMARY.md or auto-generate

@@ -36,6 +36,8 @@ interface Repo {
   lastSyncAt: string | null;
   lastSyncStatus: string;
   lastSyncError: string | null;
+  pageCount: number;
+  config: any;
   _count: { pages: number };
   space: { name: string; slug: string };
 }
@@ -79,22 +81,22 @@ export default function RepositoriesPage() {
 
   async function handleSync(id: string) {
     setSyncing((s) => new Set([...s, id]));
-    // Fire the sync — don't await (it may timeout on serverless)
     fetch(`/api/admin/repos/${id}/sync`, { method: "POST" }).catch(() => {});
-    // Poll for completion every 3 seconds, up to 2 minutes
     let attempts = 0;
     const poll = setInterval(async () => {
       attempts++;
       const res = await fetch(`/api/admin/repos/${id}`);
       if (res.ok) {
         const repo = await res.json();
-        if (repo.lastSyncStatus !== "SYNCING" || attempts > 40) {
+        // Update the repo in our list with latest progress
+        setRepos(prev => prev.map(r => r.id === id ? { ...r, pageCount: repo.pageCount, config: repo.config, lastSyncStatus: repo.lastSyncStatus, lastSyncError: repo.lastSyncError, _count: { pages: repo.pages?.length || repo.pageCount || r._count.pages } } : r));
+        if (repo.lastSyncStatus !== "SYNCING" || attempts > 60) {
           clearInterval(poll);
           setSyncing((s) => { const n = new Set(s); n.delete(id); return n; });
           refresh();
         }
       }
-      if (attempts > 40) {
+      if (attempts > 60) {
         clearInterval(poll);
         setSyncing((s) => { const n = new Set(s); n.delete(id); return n; });
         refresh();
@@ -140,14 +142,29 @@ export default function RepositoriesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{repo.owner}/{repo.repo}</span>
-                      {isSyncing ? (
-                        <Badge variant="warning" className="text-[10px] gap-1"><RefreshCw className="h-3 w-3 animate-spin" />Syncing...</Badge>
-                      ) : (
-                        <Badge variant={repo.lastSyncStatus === "SUCCESS" ? "success" : repo.lastSyncStatus === "ERROR" ? "destructive" : "secondary"} className="text-[10px]">
-                          {repo._count.pages} pages
-                        </Badge>
-                      )}
+                      {(() => {
+                        const progress = repo.config?.syncProgress;
+                        if (isSyncing || repo.lastSyncStatus === "SYNCING") {
+                          return (
+                            <Badge variant="warning" className="text-[10px] gap-1">
+                              <RefreshCw className="h-3 w-3 animate-spin" />
+                              {progress?.total ? `Syncing ${progress.synced || 0}/${progress.total}...` : "Starting sync..."}
+                            </Badge>
+                          );
+                        }
+                        return (
+                          <Badge variant={repo.lastSyncStatus === "SUCCESS" ? "success" : repo.lastSyncStatus === "ERROR" ? "destructive" : "secondary"} className="text-[10px]">
+                            {repo._count.pages} pages{repo.lastSyncStatus === "SUCCESS" ? " synced" : ""}
+                          </Badge>
+                        );
+                      })()}
                     </div>
+                    {/* Progress bar during sync */}
+                    {(isSyncing || repo.lastSyncStatus === "SYNCING") && repo.config?.syncProgress?.total > 0 && (
+                      <div className="mt-1.5 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${Math.round(((repo.config.syncProgress.synced || 0) / repo.config.syncProgress.total) * 100)}%` }} />
+                      </div>
+                    )}
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                       <span className="flex items-center gap-1"><GitBranch className="h-3 w-3" />{repo.branch}</span>
                       <span>{repo.docsPath}</span>
