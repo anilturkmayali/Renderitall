@@ -924,15 +924,29 @@ function RepoModal({spaceId,onClose,onDone}:{spaceId:string;onClose:()=>void;onD
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-2xl rounded-xl border bg-background p-6 shadow-2xl mx-4 max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between mb-4"><h2 className="text-lg font-bold">Connect Repository</h2><button onClick={onClose}><X className="h-4 w-4" /></button></div>
+      <div className="w-full max-w-2xl rounded-xl border bg-background shadow-2xl mx-4 max-h-[85vh] flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 shrink-0">
+          <h2 className="text-lg font-bold">Connect Repository</h2>
+          <button onClick={onClose} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+
         {!selected ? <>
-          {orgs.length>0&&<div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
-            <button onClick={()=>setSelectedOrg("")} className={`rounded-md border px-3 py-1.5 text-xs font-medium whitespace-nowrap ${selectedOrg===""?"border-primary bg-primary/10 text-primary":"hover:bg-muted"}`}>All</button>
-            {orgs.map(o=><button key={o.login} onClick={()=>setSelectedOrg(o.login)} className={`rounded-md border px-3 py-1.5 text-xs font-medium whitespace-nowrap ${selectedOrg===o.login?"border-primary bg-primary/10 text-primary":"hover:bg-muted"}`}>{o.login}</button>)}
-          </div>}
-          <div className="relative mb-3"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="Search..." value={ghSearch} onChange={e=>setGhSearch(e.target.value)} className="pl-10" autoFocus /></div>
-          <div className="flex-1 overflow-y-auto border rounded-lg min-h-0">
+          {/* Org tabs */}
+          {orgs.length>0 && (
+            <div className="px-6 pb-3 shrink-0">
+              <div className="flex gap-2 p-1 rounded-lg bg-muted/50 overflow-x-auto">
+                <button onClick={()=>setSelectedOrg("")} className={`rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${selectedOrg===""?"bg-background shadow-sm text-primary":"text-muted-foreground hover:text-foreground"}`}>All Repos</button>
+                {orgs.map(o=><button key={o.login} onClick={()=>setSelectedOrg(o.login)} className={`rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${selectedOrg===o.login?"bg-background shadow-sm text-primary":"text-muted-foreground hover:text-foreground"}`}>{o.login}</button>)}
+              </div>
+            </div>
+          )}
+
+          {/* Search */}
+          <div className="px-6 pb-3 shrink-0">
+            <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder={selectedOrg?`Search ${selectedOrg} repos...`:"Search all repositories..."} value={ghSearch} onChange={e=>setGhSearch(e.target.value)} className="pl-10" autoFocus /></div>
+          </div>
+          <div className="flex-1 overflow-y-auto border-t min-h-0">
             {ghLoading?<div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>:ghRepos.length===0?<div className="py-8 text-center text-sm text-muted-foreground"><p>No repos found.</p>{!orgs.length&&<p className="text-xs mt-2">Go to <strong>Settings</strong> to grant organization access.</p>}</div>:
             <div className="divide-y">{ghRepos.map(r=>(
               <button key={r.id} onClick={()=>{setSelected(r);setBranch(r.defaultBranch)}} className="flex items-start gap-3 w-full px-4 py-3 text-left hover:bg-muted/50">
@@ -945,7 +959,7 @@ function RepoModal({spaceId,onClose,onDone}:{spaceId:string;onClose:()=>void;onD
               </button>
             ))}</div>}
           </div>
-        </> : <div className="space-y-4">
+        </> : <div className="space-y-4 p-6">
           <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3"><Github className="h-5 w-5" /><span className="flex-1 font-medium text-sm">{selected.fullName}</span><Button variant="ghost" size="sm" onClick={()=>setSelected(null)}>Change</Button></div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="text-sm font-medium mb-1.5 block">Branch</label><Input value={branch} onChange={e=>setBranch(e.target.value)} /></div>

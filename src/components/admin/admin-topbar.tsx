@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   LogOut, User, Settings, Moon, Sun, Monitor, ChevronDown,
-  Github, Shield, HelpCircle, Layers,
+  Shield, Layers,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
@@ -121,18 +121,6 @@ export function AdminTopbar({ user }: AdminTopbarProps) {
                   Auto
                 </button>
               </div>
-            </div>
-
-            {/* Links */}
-            <div className="border-t py-1.5">
-              <a href="https://github.com/anilturkmayali/Renderitall" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                <Github className="h-4 w-4" />
-                GitHub repo
-              </a>
-              <a href="https://github.com/anilturkmayali/Renderitall/issues" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                <HelpCircle className="h-4 w-4" />
-                Report an issue
-              </a>
             </div>
 
             {/* Sign out */}
