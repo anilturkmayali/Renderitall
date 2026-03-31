@@ -10,6 +10,18 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Auto-reset repos stuck in SYNCING for more than 3 minutes
+  await prisma.gitHubRepo.updateMany({
+    where: {
+      lastSyncStatus: "SYNCING",
+      updatedAt: { lt: new Date(Date.now() - 3 * 60 * 1000) },
+    },
+    data: {
+      lastSyncStatus: "ERROR",
+      lastSyncError: "Sync timed out. The repository may have too many files or the connection was lost. Try syncing again.",
+    },
+  });
+
   const repos = await prisma.gitHubRepo.findMany({
     orderBy: { createdAt: "desc" },
     include: {

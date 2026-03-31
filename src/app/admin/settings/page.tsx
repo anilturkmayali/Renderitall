@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import {
-  Github, CheckCircle2, XCircle, Loader2, LogOut,
-  Shield, Building2, User, ExternalLink,
+  Github, CheckCircle2, Loader2, LogOut,
+  Building2, User, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +15,6 @@ interface GitHubAccount {
   name?: string;
   avatarUrl?: string;
   organizations?: { login: string; avatar_url: string; description: string | null }[];
-  scopes?: string[];
-  hasOrgAccess?: boolean;
-  hasRepoAccess?: boolean;
   tokenExpired?: boolean;
   error?: string;
 }
@@ -36,8 +33,8 @@ export default function SettingsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleDisconnect() {
-    if (!confirm("Disconnect GitHub? You won't be able to sync repos until you sign in again.")) return;
+  async function handleSignOut() {
+    if (!confirm("Sign out? You won't be able to sync repos until you sign in again.")) return;
     await fetch("/api/admin/github/account", { method: "DELETE" });
     window.location.href = "/login";
   }
@@ -53,7 +50,6 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Your account and GitHub connection.</p>
       </div>
 
-      {/* GitHub Connection */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Github className="h-5 w-5" />GitHub Account</CardTitle>
@@ -61,8 +57,8 @@ export default function SettingsPage() {
         <CardContent className="space-y-5">
           {!account?.connected || account.tokenExpired ? (
             <div className="p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20">
-              <p className="font-medium text-sm">{account?.tokenExpired ? "Connection expired" : "Not connected"}</p>
-              <p className="text-xs text-muted-foreground mt-1">Sign in again to reconnect your GitHub account.</p>
+              <p className="font-medium text-sm">{account?.tokenExpired ? "Session expired" : "Not connected"}</p>
+              <p className="text-xs text-muted-foreground mt-1">Sign in to connect your GitHub account.</p>
               <a href="/login"><Button size="sm" className="mt-3"><Github className="mr-1.5 h-3.5 w-3.5" />Sign in with GitHub</Button></a>
             </div>
           ) : (
@@ -81,24 +77,9 @@ export default function SettingsPage() {
                   </div>
                   <span className="text-sm text-muted-foreground">@{account.username}</span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={handleDisconnect} className="text-muted-foreground hover:text-destructive">
+                <Button variant="ghost" size="sm" onClick={handleSignOut} className="text-muted-foreground hover:text-destructive">
                   <LogOut className="mr-1.5 h-3.5 w-3.5" />Sign out
                 </Button>
-              </div>
-
-              {/* Permissions */}
-              <div>
-                <h3 className="text-sm font-medium mb-2 flex items-center gap-2"><Shield className="h-4 w-4" />Permissions</h3>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant={account.hasRepoAccess ? "success" : "destructive"} className="text-xs gap-1">
-                    {account.hasRepoAccess ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                    Repository access
-                  </Badge>
-                  <Badge variant={account.hasOrgAccess ? "success" : "destructive"} className="text-xs gap-1">
-                    {account.hasOrgAccess ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-                    Organization access
-                  </Badge>
-                </div>
               </div>
 
               {/* Organizations */}
@@ -119,9 +100,9 @@ export default function SettingsPage() {
                   </div>
                 ) : (
                   <div className="p-4 rounded-lg border bg-muted/30">
-                    <p className="text-sm font-medium mb-2">No organizations visible</p>
+                    <p className="text-sm font-medium mb-2">Grant access to your organizations</p>
                     <p className="text-xs text-muted-foreground mb-3">
-                      To access organization repositories, you need to grant this app access on GitHub:
+                      To import repositories from your organizations, you need to grant this app access on GitHub:
                     </p>
                     <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside mb-3">
                       <li>Click the button below to open your GitHub settings</li>

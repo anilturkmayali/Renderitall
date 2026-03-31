@@ -64,15 +64,7 @@ export function AdminSidebar() {
         </nav>
       </ScrollArea>
 
-      <div className="border-t p-3">
-        <Link
-          href="/admin/spaces"
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-        >
-          <Globe className="h-4 w-4" />
-          Manage your sites
-        </Link>
-      </div>
+      <div className="border-t p-3" />
     </aside>
   );
 }

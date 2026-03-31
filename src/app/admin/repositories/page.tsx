@@ -79,9 +79,27 @@ export default function RepositoriesPage() {
 
   async function handleSync(id: string) {
     setSyncing((s) => new Set([...s, id]));
-    await fetch(`/api/admin/repos/${id}/sync`, { method: "POST" });
-    setSyncing((s) => { const n = new Set(s); n.delete(id); return n; });
-    refresh();
+    // Fire the sync — don't await (it may timeout on serverless)
+    fetch(`/api/admin/repos/${id}/sync`, { method: "POST" }).catch(() => {});
+    // Poll for completion every 3 seconds, up to 2 minutes
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      const res = await fetch(`/api/admin/repos/${id}`);
+      if (res.ok) {
+        const repo = await res.json();
+        if (repo.lastSyncStatus !== "SYNCING" || attempts > 40) {
+          clearInterval(poll);
+          setSyncing((s) => { const n = new Set(s); n.delete(id); return n; });
+          refresh();
+        }
+      }
+      if (attempts > 40) {
+        clearInterval(poll);
+        setSyncing((s) => { const n = new Set(s); n.delete(id); return n; });
+        refresh();
+      }
+    }, 3000);
   }
 
   async function handleDelete(id: string) {
@@ -114,7 +132,7 @@ export default function RepositoriesPage() {
       ) : (
         <div className="grid gap-3">
           {repos.map((repo) => {
-            const isSyncing = syncing.has(repo.id);
+            const isSyncing = syncing.has(repo.id) || repo.lastSyncStatus === "SYNCING";
             return (
               <Card key={repo.id}>
                 <CardContent className="flex items-center gap-4 p-4">
@@ -122,9 +140,13 @@ export default function RepositoriesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{repo.owner}/{repo.repo}</span>
-                      <Badge variant={repo.lastSyncStatus === "SUCCESS" ? "success" : repo.lastSyncStatus === "ERROR" ? "destructive" : "secondary"} className="text-[10px]">
-                        {repo._count.pages} pages
-                      </Badge>
+                      {isSyncing ? (
+                        <Badge variant="warning" className="text-[10px] gap-1"><RefreshCw className="h-3 w-3 animate-spin" />Syncing...</Badge>
+                      ) : (
+                        <Badge variant={repo.lastSyncStatus === "SUCCESS" ? "success" : repo.lastSyncStatus === "ERROR" ? "destructive" : "secondary"} className="text-[10px]">
+                          {repo._count.pages} pages
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                       <span className="flex items-center gap-1"><GitBranch className="h-3 w-3" />{repo.branch}</span>

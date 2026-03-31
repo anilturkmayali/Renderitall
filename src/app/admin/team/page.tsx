@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  Users, Plus, Loader2, Trash2, Shield, Crown, PenTool, Eye, User, Mail,
+  Users, Plus, Loader2, Trash2, Shield, PenTool, User, Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,17 +17,9 @@ interface Member {
   user: { id: string; name: string | null; email: string | null; image: string | null };
 }
 
-const ROLE_CONFIG: Record<string, { label: string; icon: any; color: string; desc: string }> = {
-  OWNER: { label: "Owner", icon: Crown, color: "text-amber-600", desc: "Full access, cannot be removed" },
-  ADMIN: { label: "Admin", icon: Shield, color: "text-blue-600", desc: "Manage team, sites, repos, content" },
-  EDITOR: { label: "Editor", icon: PenTool, color: "text-green-600", desc: "Edit content, manage repos and sites" },
-  REVIEWER: { label: "Viewer", icon: Eye, color: "text-muted-foreground", desc: "View-only access to admin" },
-};
-
 export default function TeamPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [currentUserRole, setCurrentUserRole] = useState("");
-  const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -44,7 +36,6 @@ export default function TeamPage() {
       const data = await res.json();
       setMembers(data.members || []);
       setCurrentUserRole(data.currentUserRole || "");
-      setOrgName(data.orgName || "");
     }
     setLoading(false);
   }
@@ -84,10 +75,7 @@ export default function TeamPage() {
     if (!confirm(`Remove ${name} from the team?`)) return;
     const res = await fetch(`/api/admin/team/${memberId}`, { method: "DELETE" });
     if (res.ok) loadTeam();
-    else {
-      const data = await res.json();
-      alert(data.error || "Failed to remove");
-    }
+    else alert((await res.json()).error || "Failed");
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
@@ -97,9 +85,7 @@ export default function TeamPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Team</h1>
-          <p className="text-muted-foreground">
-            {orgName ? `Manage members of ${orgName}.` : "Manage your team members."}
-          </p>
+          <p className="text-muted-foreground">Manage who has access to the admin panel.</p>
         </div>
         {canManage && (
           <Button onClick={() => setShowInvite(true)}>
@@ -108,18 +94,22 @@ export default function TeamPage() {
         )}
       </div>
 
-      {/* Role legend */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {Object.entries(ROLE_CONFIG).map(([key, cfg]) => {
-          const Icon = cfg.icon;
-          return (
-            <div key={key} className="rounded-lg border p-3 text-center">
-              <Icon className={`h-5 w-5 mx-auto mb-1 ${cfg.color}`} />
-              <p className="text-xs font-semibold">{cfg.label}</p>
-              <p className="text-[10px] text-muted-foreground">{cfg.desc}</p>
-            </div>
-          );
-        })}
+      {/* Role descriptions */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Shield className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-semibold">Admin</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Full access. Can manage team members, sites, repos, content, and all settings.</p>
+        </div>
+        <div className="rounded-lg border p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <PenTool className="h-4 w-4 text-green-600" />
+            <span className="text-sm font-semibold">Editor</span>
+          </div>
+          <p className="text-xs text-muted-foreground">Can edit content, manage repos, and design sites. Cannot manage team or delete sites.</p>
+        </div>
       </div>
 
       {/* Members list */}
@@ -132,9 +122,8 @@ export default function TeamPage() {
         </CardHeader>
         <CardContent className="p-0 divide-y">
           {members.map((member) => {
-            const cfg = ROLE_CONFIG[member.role] || ROLE_CONFIG.REVIEWER;
-            const Icon = cfg.icon;
             const isOwner = member.role === "OWNER";
+            const isSelf = member.userId === members.find(m => m.role === "OWNER")?.userId && isOwner;
 
             return (
               <div key={member.id} className="flex items-center gap-4 px-5 py-4">
@@ -150,7 +139,6 @@ export default function TeamPage() {
                   <p className="text-xs text-muted-foreground">{member.user.email || "No email"}</p>
                 </div>
 
-                {/* Role selector or badge */}
                 {canManage && !isOwner ? (
                   <select
                     className="h-8 rounded-md border border-input bg-transparent px-2 text-xs font-medium"
@@ -159,16 +147,13 @@ export default function TeamPage() {
                   >
                     <option value="ADMIN">Admin</option>
                     <option value="EDITOR">Editor</option>
-                    <option value="REVIEWER">Viewer</option>
                   </select>
                 ) : (
-                  <Badge variant="outline" className={`text-xs gap-1 ${cfg.color}`}>
-                    <Icon className="h-3 w-3" />
-                    {cfg.label}
+                  <Badge variant="outline" className="text-xs">
+                    {isOwner ? "Owner" : member.role === "ADMIN" ? "Admin" : "Editor"}
                   </Badge>
                 )}
 
-                {/* Remove button */}
                 {canManage && !isOwner && (
                   <Button
                     variant="ghost"
@@ -210,33 +195,27 @@ export default function TeamPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Role</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: "ADMIN", label: "Admin", desc: "Full management" },
-                    { id: "EDITOR", label: "Editor", desc: "Edit content" },
-                    { id: "REVIEWER", label: "Viewer", desc: "Read-only" },
-                  ].map((r) => (
-                    <button
-                      key={r.id}
-                      onClick={() => setInviteRole(r.id)}
-                      className={`rounded-lg border-2 p-3 text-left transition-all ${
-                        inviteRole === r.id
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/30"
-                      }`}
-                    >
-                      <p className="text-xs font-semibold">{r.label}</p>
-                      <p className="text-[10px] text-muted-foreground">{r.desc}</p>
-                    </button>
-                  ))}
+                <label className="text-sm font-medium mb-2 block">Role</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setInviteRole("ADMIN")}
+                    className={`rounded-lg border-2 p-4 text-left transition-all ${inviteRole === "ADMIN" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
+                  >
+                    <div className="flex items-center gap-2 mb-1"><Shield className="h-4 w-4 text-blue-600" /><span className="text-sm font-semibold">Admin</span></div>
+                    <p className="text-xs text-muted-foreground">Full management access</p>
+                  </button>
+                  <button
+                    onClick={() => setInviteRole("EDITOR")}
+                    className={`rounded-lg border-2 p-4 text-left transition-all ${inviteRole === "EDITOR" ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
+                  >
+                    <div className="flex items-center gap-2 mb-1"><PenTool className="h-4 w-4 text-green-600" /><span className="text-sm font-semibold">Editor</span></div>
+                    <p className="text-xs text-muted-foreground">Edit content and design</p>
+                  </button>
                 </div>
               </div>
 
               {error && (
-                <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-2 rounded">
-                  {error}
-                </p>
+                <p className="text-sm text-red-500 bg-red-50 dark:bg-red-950/20 p-2 rounded">{error}</p>
               )}
             </div>
 
