@@ -434,6 +434,7 @@ export default function SiteDetailPage() {
                     <div className="text-xs text-muted-foreground mt-0.5">{r.branch} · {r.docsPath}{r.lastSyncAt&&` · ${new Date(r.lastSyncAt).toLocaleDateString()}`}</div>
                     {r.lastSyncError&&<p className="text-xs text-red-500 mt-1">{r.lastSyncError}</p>}
                   </div>
+                  <Link href={`/admin/repositories/${r.id}`}><Button variant="outline" size="sm"><Settings className="mr-1 h-3 w-3" />Customize</Button></Link>
                   <Button variant="outline" size="sm" onClick={()=>syncRepo(r.id)} disabled={s}><RefreshCw className={`mr-1 h-3 w-3 ${s?"animate-spin":""}`} />{s?"Syncing":"Sync"}</Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={()=>delRepo(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </CardContent></Card>

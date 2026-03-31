@@ -250,6 +250,8 @@ model GitHubRepo {
   lastSyncStatus SyncStatus @default(IDLE) @map("last_sync_status")
   lastSyncError String?    @map("last_sync_error")
   pageCount     Int        @default(0) @map("page_count")
+  homePageId    String?    @map("home_page_id")
+  config        Json?      @default("{}") // stores excludedPageIds, sidebar order, etc.
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 

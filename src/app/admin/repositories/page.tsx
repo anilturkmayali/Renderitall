@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import {
   Github,
+  Settings,
   RefreshCw,
   CheckCircle2,
   XCircle,
@@ -143,6 +145,9 @@ export default function RepositoriesPage() {
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    <Link href={`/admin/repositories/${repo.id}`}>
+                      <Button variant="outline" size="sm"><Settings className="mr-1 h-3 w-3" />Customize</Button>
+                    </Link>
                     <Button variant="outline" size="sm" onClick={() => handleSync(repo.id)} disabled={isSyncing}>
                       <RefreshCw className={`mr-1 h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} />{isSyncing ? "Syncing..." : "Sync"}
                     </Button>
