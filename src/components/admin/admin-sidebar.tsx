@@ -9,6 +9,7 @@ import {
   Github,
   Settings,
   Users,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -20,6 +21,7 @@ const navItems = [
   { label: "Import from GitHub", href: "/admin/repositories", icon: Github },
   { label: "Team", href: "/admin/team", icon: Users },
   { label: "Settings", href: "/admin/settings", icon: Settings },
+  { label: "Guide", href: "/admin/guide", icon: BookOpen },
 ];
 
 export function AdminSidebar() {
