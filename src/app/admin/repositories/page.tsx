@@ -89,8 +89,8 @@ export default function RepositoriesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Repositories</h1>
-          <p className="text-muted-foreground">Connect GitHub repositories to import documentation content.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Import from GitHub</h1>
+          <p className="text-muted-foreground">Connect repositories and import their content. Imported pages can be used in any Site.</p>
         </div>
         <Button onClick={() => setShowModal(true)}><Plus className="mr-2 h-4 w-4" />Connect Repo</Button>
       </div>
@@ -100,7 +100,7 @@ export default function RepositoriesPage() {
           <CardContent className="py-12 text-center">
             <Github className="mx-auto h-10 w-10 mb-3 opacity-50" />
             <h3 className="font-semibold mb-1">No repositories connected</h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">Connect a GitHub repo to import its markdown files as documentation pages.</p>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">Connect a GitHub repo and choose which markdown files to import.</p>
             <Button onClick={() => setShowModal(true)}><Github className="mr-2 h-4 w-4" />Connect your first repo</Button>
           </CardContent>
         </Card>
@@ -140,7 +140,7 @@ export default function RepositoriesPage() {
                       <Button variant="outline" size="sm"><Settings className="mr-1 h-3 w-3" />Customize</Button>
                     </Link>
                     <Button variant="outline" size="sm" onClick={() => {setSyncRepoId(repo.id);setSyncRepoName(`${repo.owner}/${repo.repo}`)}}>
-                      <RefreshCw className="mr-1 h-3 w-3" />Sync
+                      <RefreshCw className="mr-1 h-3 w-3" />Import
                     </Button>
                     <a href={`https://github.com/${repo.owner}/${repo.repo}`} target="_blank" rel="noopener noreferrer">
                       <Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="h-3.5 w-3.5" /></Button>

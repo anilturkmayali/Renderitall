@@ -141,7 +141,7 @@ export default function SiteDetailPage() {
       setLogo(s.org?.logo || null);
       setHomepageId(s.icon || null); // icon field stores homepage ID
     }
-    if (rRes.ok) setRepos((await rRes.json()).filter((r:any) => r.spaceId === id));
+    if (rRes.ok) setRepos(await rRes.json());
     if (pRes.ok) setPages(await pRes.json());
     if (nRes.ok) setNavItems((await nRes.json()).map(mapNav));
     setLoading(false);
@@ -839,9 +839,8 @@ export default function SiteDetailPage() {
   );
 }
 
-// ─── Repo Modal ──────────────────────────────────────────────────────────────
-
-function RepoModal({spaceId,onClose,onDone}:{spaceId:string;onClose:()=>void;onDone:()=>void}) {
+/* eslint-disable */
+function _Unused({spaceId,onClose,onDone}:{spaceId:string;onClose:()=>void;onDone:()=>void}) {
   const [ghRepos,setGhRepos]=useState<GHRepo[]>([]); const [ghSearch,setGhSearch]=useState(""); const [ghLoading,setGhLoading]=useState(true);
   const [selected,setSelected]=useState<GHRepo|null>(null); const [branch,setBranch]=useState(""); const [docsPath,setDocsPath]=useState("/");
   const [creating,setCreating]=useState(false); const [error,setError]=useState(""); const [orgs,setOrgs]=useState<{login:string}[]>([]);

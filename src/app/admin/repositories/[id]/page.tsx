@@ -168,7 +168,7 @@ export default function RepoDetailPage() {
             <RefreshCw
               className={`mr-1.5 h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`}
             />
-            {syncing ? "Syncing..." : "Sync"}
+            {syncing ? "Importing..." : "Import"}
           </Button>
           <a
             href={`https://github.com/${repo.owner}/${repo.repo}`}
@@ -259,7 +259,7 @@ export default function RepoDetailPage() {
             {filteredPages.length === 0 ? (
               <div className="py-8 text-center text-muted-foreground text-sm">
                 {allPages.length === 0
-                  ? "No pages imported yet. Click Sync to import content from GitHub."
+                  ? "No pages imported yet. Click Import to bring content from GitHub."
                   : "No pages match your search."}
               </div>
             ) : (

@@ -16,8 +16,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Sites", href: "/admin/spaces", icon: Layers },
-  { label: "Pages", href: "/admin/pages", icon: FileText },
-  { label: "Repositories", href: "/admin/repositories", icon: Github },
+  { label: "Custom Pages", href: "/admin/pages", icon: FileText },
+  { label: "Import from GitHub", href: "/admin/repositories", icon: Github },
   { label: "Team", href: "/admin/team", icon: Users },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
