@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { syncRepository } from "@/lib/sync";
 
-// Allow up to 60 seconds for sync (Vercel Pro) or 10s (free tier)
 export const maxDuration = 60;
 
 export async function POST(
@@ -16,14 +15,15 @@ export async function POST(
 
   const { id } = await params;
 
-  const result = await syncRepository(id);
-
-  if (!result.success) {
+  // Run sync and return result — the function has up to 60s
+  // If it times out, the auto-reset mechanism will catch it
+  try {
+    const result = await syncRepository(id);
+    return NextResponse.json(result);
+  } catch (err: any) {
     return NextResponse.json(
-      { error: result.error, ...result },
+      { success: false, error: err.message || "Sync failed" },
       { status: 500 }
     );
   }
-
-  return NextResponse.json(result);
 }
