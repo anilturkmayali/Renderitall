@@ -57,6 +57,7 @@ export async function PUT(
       seoDescription: body.seoDescription,
       icon: body.icon,
       analyticsId: body.font,
+      robotsIndex: body.pdfExport !== undefined ? body.pdfExport : undefined,
     },
   });
 

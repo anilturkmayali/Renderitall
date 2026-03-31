@@ -106,7 +106,7 @@ export default function SiteDetailPage() {
   // Settings
   const [settings, setSettings] = useState({
     name: "", slug: "", description: "", isPublic: true,
-    seoTitle: "", seoDescription: "", customCss: "",
+    seoTitle: "", seoDescription: "", customCss: "", pdfExport: true,
   });
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -137,7 +137,7 @@ export default function SiteDetailPage() {
       const s = await sRes.json();
       setSpace(s);
       setForm({ primaryColor: s.primaryColor||"#3b82f6", accentColor: s.accentColor||"", defaultTheme: s.defaultTheme||"SYSTEM", headerLayout: s.headerLayout||"default", font: s.analyticsId||"" });
-      setSettings({ name: s.name||"", slug: s.slug||"", description: s.description||"", isPublic: s.isPublic!==false, seoTitle: s.seoTitle||"", seoDescription: s.seoDescription||"", customCss: s.customCss||"" });
+      setSettings({ name: s.name||"", slug: s.slug||"", description: s.description||"", isPublic: s.isPublic!==false, seoTitle: s.seoTitle||"", seoDescription: s.seoDescription||"", customCss: s.customCss||"", pdfExport: s.robotsIndex!==false });
       setLogo(s.org?.logo || null);
       setHomepageId(s.icon || null); // icon field stores homepage ID
     }
@@ -874,6 +874,21 @@ export default function SiteDetailPage() {
             <div><label className="text-sm font-medium mb-1.5 block">SEO Title</label><Input value={settings.seoTitle} onChange={e=>setSettings({...settings,seoTitle:e.target.value})} placeholder={settings.name} /></div>
             <div><label className="text-sm font-medium mb-1.5 block">SEO Description</label><Input value={settings.seoDescription} onChange={e=>setSettings({...settings,seoDescription:e.target.value})} /></div>
             <Button onClick={saveSettings} disabled={settingsSaving}>{settingsSaved?"Saved!":"Save"}</Button>
+          </CardContent></Card>
+
+          <Card><CardHeader><CardTitle>Features</CardTitle></CardHeader><CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">PDF Export</p>
+                <p className="text-xs text-muted-foreground">Allow visitors to download pages as PDF.</p>
+              </div>
+              <button
+                onClick={()=>{const v=!settings.pdfExport;setSettings({...settings,pdfExport:v});fetch(`/api/admin/spaces/${id}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({pdfExport:v})})}}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${settings.pdfExport?"bg-primary":"bg-muted"}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.pdfExport?"translate-x-6":"translate-x-1"}`} />
+              </button>
+            </div>
           </CardContent></Card>
 
           <Card><CardHeader><CardTitle>Custom CSS</CardTitle></CardHeader><CardContent>

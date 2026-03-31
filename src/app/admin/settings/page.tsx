@@ -97,6 +97,15 @@ export default function SettingsPage() {
                         <Badge variant="success" className="text-[10px]">Access granted</Badge>
                       </div>
                     ))}
+                    <a
+                      href={`https://github.com/settings/connections/applications/${GITHUB_CLIENT_ID}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-muted-foreground hover:text-foreground mt-2 inline-flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Manage or revoke organization access on GitHub
+                    </a>
                   </div>
                 ) : (
                   <div className="p-4 rounded-lg border bg-muted/30">
@@ -122,6 +131,29 @@ export default function SettingsPage() {
                     </a>
                   </div>
                 )}
+              </div>
+              {/* Manage connection */}
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-medium mb-2">Manage Connection</h3>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={`https://github.com/settings/connections/applications/${GITHUB_CLIENT_ID}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button size="sm" variant="outline">
+                      <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                      Manage on GitHub
+                    </Button>
+                  </a>
+                  <Button size="sm" variant="outline" className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20" onClick={handleSignOut}>
+                    <LogOut className="mr-1.5 h-3.5 w-3.5" />
+                    Disconnect & Sign Out
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  To fully revoke access, click &quot;Manage on GitHub&quot; and then &quot;Revoke access&quot; on the GitHub page. To revoke organization access only, click the same link and find the organization section.
+                </p>
               </div>
             </>
           )}

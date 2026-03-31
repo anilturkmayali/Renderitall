@@ -204,7 +204,7 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
         )}
         {page.commitAuthor && <span>by {page.commitAuthor}</span>}
         <div className="ml-auto flex items-center gap-4">
-          <PdfButton />
+          {space.robotsIndex !== false && <PdfButton />}
           {editUrl && (
             <Link href={editUrl} target="_blank" className="flex items-center gap-1.5 hover:text-foreground transition-colors">
               <Pencil className="h-3.5 w-3.5" />Edit this page
