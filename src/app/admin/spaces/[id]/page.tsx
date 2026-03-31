@@ -11,7 +11,6 @@ import {
   Link2, Upload, ImageIcon, Monitor, Smartphone, Tablet, Home,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SyncModal as SyncModalComponent } from "@/components/admin/sync-modal";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,9 +68,6 @@ export default function SiteDetailPage() {
   const [tab, setTab] = useState<"content"|"menu"|"appearance"|"settings">("content");
 
   // Content
-  const [showRepoModal, setShowRepoModal] = useState(false);
-  const [syncRepoId, setSyncRepoId] = useState<string | null>(null);
-  const [syncRepoName, setSyncRepoName] = useState("");
   const [pageSearch, setPageSearch] = useState("");
   const [homepageId, setHomepageId] = useState<string | null>(null);
 
@@ -131,8 +127,8 @@ export default function SiteDetailPage() {
     setLoading(true);
     const [sRes, rRes, pRes, nRes, tmRes] = await Promise.all([
       fetch(`/api/admin/spaces/${id}`),
-      fetch("/api/admin/repos"),
-      fetch(`/api/admin/pages?spaceId=${id}`),
+      fetch("/api/admin/repos"), // still needed for menu add-item repo dropdown
+      fetch("/api/admin/pages"),
       fetch(`/api/admin/nav/${id}`),
       fetch(`/api/admin/spaces/${id}/topmenu`),
     ]);
@@ -181,15 +177,6 @@ export default function SiteDetailPage() {
 
   // ─── Content actions ───────────────────────────────────────────
 
-  function openSyncModal(r: any) {
-    setSyncRepoId(r.id);
-    setSyncRepoName(`${r.owner}/${r.repo}`);
-  }
-  async function delRepo(rid:string) {
-    if (!confirm("Remove this repo and all its synced pages?")) return;
-    await fetch(`/api/admin/repos/${rid}`, { method:"DELETE" });
-    loadAll();
-  }
   async function setHomepage(pageId: string | null) {
     setHomepageId(pageId);
     // Save to Space.icon field
@@ -429,40 +416,13 @@ export default function SiteDetailPage() {
       {/* ━━━ CONTENT TAB ━━━ */}
       {tab==="content" && (
         <div className="space-y-6">
-          {/* Repos */}
+          {/* Available Pages — from all repos + custom pages */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold">Connected Repositories</h2>
-              <Button size="sm" onClick={()=>setShowRepoModal(true)}><Plus className="mr-1.5 h-3.5 w-3.5" />Connect Repo</Button>
-            </div>
-            {repos.length===0 ? (
-              <Card><CardContent className="py-8 text-center"><Github className="mx-auto h-8 w-8 mb-2 opacity-50" /><p className="text-sm text-muted-foreground">No repos connected.</p><Button size="sm" className="mt-3" onClick={()=>setShowRepoModal(true)}><Github className="mr-1.5 h-3.5 w-3.5" />Connect repo</Button></CardContent></Card>
-            ) : (
-              <div className="grid gap-2">{repos.map(r=>{return (
-                <Card key={r.id}><CardContent className="flex items-center gap-4 p-4">
-                  <Github className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{r.owner}/{r.repo}</span>
-                      <Badge variant={r.lastSyncStatus==="SUCCESS"?"success":r.lastSyncStatus==="ERROR"?"destructive":"secondary"} className="text-[10px]">
-                        {r._count.pages} pages
-                      </Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{r.branch} · {r.docsPath}{r.lastSyncAt&&` · ${new Date(r.lastSyncAt).toLocaleDateString()}`}</div>
-                    {r.lastSyncError&&<p className="text-xs text-red-500 mt-1">{r.lastSyncError}</p>}
-                  </div>
-                  <Link href={`/admin/repositories/${r.id}`}><Button variant="outline" size="sm"><Settings className="mr-1 h-3 w-3" />Customize</Button></Link>
-                  <Button variant="outline" size="sm" onClick={()=>openSyncModal(r)}><RefreshCw className="mr-1 h-3 w-3" />Sync</Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={()=>delRepo(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                </CardContent></Card>
-              );})}</div>
-            )}
-          </div>
-
-          {/* Pages */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-lg font-semibold">Pages ({pages.length})</h2>
+              <div>
+                <h2 className="text-lg font-semibold">Available Content ({pages.length} pages)</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">All imported repository pages and custom pages. Use Menu tab to add them to your site.</p>
+              </div>
               <div className="flex gap-2">
                 <div className="relative"><Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" /><Input placeholder="Search..." value={pageSearch} onChange={e=>setPageSearch(e.target.value)} className="pl-8 h-8 w-48 text-sm" /></div>
                 <Link href={`/admin/editor?spaceId=${id}`}><Button size="sm" variant="outline"><PenTool className="mr-1.5 h-3.5 w-3.5" />New Page</Button></Link>
@@ -851,12 +811,6 @@ export default function SiteDetailPage() {
           </div></div>
         </CardContent></Card>
       )}
-
-      {/* ━━━ REPO MODAL ━━━ */}
-      {showRepoModal && <RepoModal spaceId={id} onClose={()=>setShowRepoModal(false)} onDone={()=>{setShowRepoModal(false);loadAll()}} />}
-
-      {/* Sync Modal */}
-      {syncRepoId && <SyncModalComponent repoId={syncRepoId} repoName={syncRepoName} onClose={()=>setSyncRepoId(null)} onDone={()=>{setSyncRepoId(null);loadAll()}} />}
 
       {/* ━━━ ADD MENU MODAL ━━━ */}
       {addModal && (
