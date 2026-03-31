@@ -44,7 +44,6 @@ interface Repo {
   space: { name: string; slug: string };
 }
 
-interface Space { id: string; name: string; slug: string; }
 
 interface GHRepo {
   id: number;
@@ -60,19 +59,14 @@ interface GHRepo {
 
 export default function RepositoriesPage() {
   const [repos, setRepos] = useState<Repo[]>([]);
-  const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [syncRepoId, setSyncRepoId] = useState<string|null>(null);
   const [syncRepoName, setSyncRepoName] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      fetch("/api/admin/repos").then((r) => r.json()),
-      fetch("/api/admin/spaces").then((r) => r.json()),
-    ]).then(([r, s]) => {
+    fetch("/api/admin/repos").then((r) => r.json()).then((r) => {
       setRepos(r);
-      setSpaces(s);
       setLoading(false);
     });
   }, []);
@@ -127,7 +121,6 @@ export default function RepositoriesPage() {
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                       <span className="flex items-center gap-1"><GitBranch className="h-3 w-3" />{repo.branch}</span>
                       <span>{repo.docsPath}</span>
-                      <span>→ {repo.space.name}</span>
                       {repo.lastSyncAt && <span>· Synced {new Date(repo.lastSyncAt).toLocaleDateString()}</span>}
                       {repo.lastSyncStatus === "ERROR" && (
                         <Badge variant="destructive" className="text-[10px]">Sync failed</Badge>
@@ -167,7 +160,6 @@ export default function RepositoriesPage() {
 
       {showModal && (
         <ConnectModal
-          spaces={spaces}
           onClose={() => setShowModal(false)}
           onDone={() => { setShowModal(false); refresh(); }}
         />
@@ -178,7 +170,7 @@ export default function RepositoriesPage() {
 
 interface FilePreview { path: string; sha: string; slug: string; title: string; alreadySynced: boolean; unchanged: boolean; }
 
-function ConnectModal({ spaces, onClose, onDone }: { spaces: Space[]; onClose: () => void; onDone: () => void }) {
+function ConnectModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   // Step: browse → configure → selectFiles → importing → done
   const [step, setStep] = useState<"browse"|"configure"|"selectFiles"|"importing"|"done">("browse");
 
@@ -194,7 +186,7 @@ function ConnectModal({ spaces, onClose, onDone }: { spaces: Space[]; onClose: (
   const [selected, setSelected] = useState<GHRepo|null>(null);
   const [branch, setBranch] = useState("");
   const [docsPath, setDocsPath] = useState("/");
-  const [spaceId, setSpaceId] = useState(spaces[0]?.id || "");
+  // spaceId auto-assigned by API
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [connectedRepoId, setConnectedRepoId] = useState("");
@@ -230,11 +222,11 @@ function ConnectModal({ spaces, onClose, onDone }: { spaces: Space[]; onClose: (
   }
 
   async function handleConnect() {
-    if(!selected||!spaceId) return;
+    if(!selected) return;
     setCreating(true); setError("");
     const res = await fetch("/api/admin/repos", {
       method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ owner:selected.owner, repo:selected.name, branch:branch||selected.defaultBranch, docsPath, spaceId }),
+      body: JSON.stringify({ owner:selected.owner, repo:selected.name, branch:branch||selected.defaultBranch, docsPath }),
     });
     if(!res.ok) { setError((await res.json()).error||"Failed"); setCreating(false); return; }
     const repo = await res.json();
@@ -341,14 +333,9 @@ function ConnectModal({ spaces, onClose, onDone }: { spaces: Space[]; onClose: (
               <Github className="h-5 w-5" /><span className="flex-1 font-medium text-sm">{selected.fullName}</span>
               <Button variant="ghost" size="sm" onClick={()=>{setSelected(null);setStep("browse")}}>Change</Button>
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div><label className="text-sm font-medium mb-1.5 block">Branch</label><Input value={branch} onChange={e=>setBranch(e.target.value)} /></div>
               <div><label className="text-sm font-medium mb-1.5 block">Docs Path</label><Input value={docsPath} onChange={e=>setDocsPath(e.target.value)} placeholder="/" /></div>
-              <div><label className="text-sm font-medium mb-1.5 block">Space</label>
-                <select className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm" value={spaceId} onChange={e=>setSpaceId(e.target.value)}>
-                  {spaces.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
             </div>
             {error&&<p className="text-sm text-red-500">{error}</p>}
             <div className="flex justify-end gap-3">

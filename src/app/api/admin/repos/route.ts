@@ -40,16 +40,49 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { spaceId, owner, repo, branch, docsPath } = body;
+  const { owner, repo, branch, docsPath } = body;
+  let { spaceId } = body;
 
-  if (!spaceId || !owner || !repo) {
+  if (!owner || !repo) {
     return NextResponse.json(
-      { error: "spaceId, owner, and repo are required" },
+      { error: "owner and repo are required" },
       { status: 400 }
     );
   }
 
-  // Get the user's GitHub access token from their OAuth account
+  // Auto-assign to a default space if not provided
+  if (!spaceId) {
+    const membership = await prisma.orgMember.findFirst({
+      where: { userId: session.user.id },
+    });
+
+    if (membership) {
+      const existingSpace = await prisma.space.findFirst({
+        where: { orgId: membership.orgId },
+        select: { id: true },
+      });
+
+      if (existingSpace) {
+        spaceId = existingSpace.id;
+      } else {
+        const space = await prisma.space.create({
+          data: { orgId: membership.orgId, name: "Default", slug: "default", isPublic: true },
+        });
+        spaceId = space.id;
+      }
+    } else {
+      // No org — create one
+      const org = await prisma.organisation.create({
+        data: { name: "My Organization", slug: "default", members: { create: { userId: session.user.id!, role: "OWNER" } } },
+      });
+      const space = await prisma.space.create({
+        data: { orgId: org.id, name: "Default", slug: "default", isPublic: true },
+      });
+      spaceId = space.id;
+    }
+  }
+
+  // Get the user's GitHub access token
   const account = await prisma.account.findFirst({
     where: { userId: session.user.id, provider: "github" },
   });
