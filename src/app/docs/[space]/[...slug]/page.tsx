@@ -12,40 +12,27 @@ import { formatDistanceToNow } from "date-fns";
 import { unstable_cache } from "next/cache";
 import type { Metadata } from "next";
 
-// Revalidate pages every 60 seconds (ISR)
 export const revalidate = 60;
 
 interface PageProps {
   params: Promise<{ space: string; slug: string[] }>;
 }
 
-export async function generateMetadata({
-  params: paramsPromise,
-}: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params: paramsPromise }: PageProps): Promise<Metadata> {
   const params = await paramsPromise;
-  const space = await prisma.space.findFirst({
-    where: { slug: params.space, isPublic: true },
-    select: { id: true, name: true },
-  });
+  const space = await getSpace(params.space);
   if (!space) return {};
-
   const slug = params.slug.join("/");
-  const page = await prisma.page.findFirst({
-    where: { spaceId: space.id, slug, status: "PUBLISHED" },
-    select: { title: true, excerpt: true },
-  });
+  const page = await findPage(space.id, slug);
   if (!page) return {};
-
   return {
     title: page.title,
     description: page.excerpt || `${page.title} — ${space.name}`,
-    openGraph: {
-      title: page.title,
-      description: page.excerpt || `${page.title} — ${space.name}`,
-      type: "article",
-    },
+    openGraph: { title: page.title, description: page.excerpt || `${page.title} — ${space.name}`, type: "article" },
   };
 }
+
+// ─── Data fetching ───────────────────────────────────────────────────────────
 
 const getSpace = unstable_cache(
   async (slug: string) => {
@@ -58,31 +45,85 @@ const getSpace = unstable_cache(
   { revalidate: 120 }
 );
 
-const getPage = unstable_cache(
-  async (spaceId: string, slug: string) => {
-    // Try exact match first, then case-insensitive
-    let page = await prisma.page.findFirst({
-      where: { spaceId, slug, status: "PUBLISHED" },
-      include: { githubRepo: { select: { owner: true, repo: true, branch: true } } },
-    });
-    if (!page) {
-      // Try case-insensitive
+/**
+ * Find a page by slug. Tries multiple strategies:
+ * 1. Exact slug match
+ * 2. Case-insensitive match
+ * 3. If first slug segment matches a repo slug, look for page within that repo
+ * 4. If slug matches a repo slug exactly, return the repo's home page
+ */
+async function findPage(spaceId: string, slug: string) {
+  // Strategy 1: exact match
+  let page = await prisma.page.findFirst({
+    where: { spaceId, slug, status: "PUBLISHED" },
+    include: { githubRepo: { select: { owner: true, repo: true, branch: true, slug: true, displayName: true, homePageId: true, config: true } } },
+  });
+  if (page) return page;
+
+  // Strategy 2: case-insensitive
+  page = await prisma.page.findFirst({
+    where: { spaceId, slug: { equals: slug, mode: "insensitive" }, status: "PUBLISHED" },
+    include: { githubRepo: { select: { owner: true, repo: true, branch: true, slug: true, displayName: true, homePageId: true, config: true } } },
+  });
+  if (page) return page;
+
+  // Strategy 3: slug might be "{repoSlug}" or "{repoSlug}/{pageSlug}"
+  const slugParts = slug.split("/");
+  const firstPart = slugParts[0];
+
+  // Find a repo whose slug matches the first part
+  const repo = await prisma.gitHubRepo.findFirst({
+    where: {
+      spaceId,
+      OR: [
+        { slug: firstPart },
+        { slug: { equals: firstPart, mode: "insensitive" } },
+        { repo: { equals: firstPart, mode: "insensitive" } },
+      ],
+    },
+  });
+
+  if (repo) {
+    if (slugParts.length === 1) {
+      // Just the repo slug — return the home page
+      if (repo.homePageId) {
+        page = await prisma.page.findFirst({
+          where: { id: repo.homePageId, status: "PUBLISHED" },
+          include: { githubRepo: { select: { owner: true, repo: true, branch: true, slug: true, displayName: true, homePageId: true, config: true } } },
+        });
+        if (page) return page;
+      }
+      // No home page set — return the first page of the repo
       page = await prisma.page.findFirst({
-        where: { spaceId, slug: { equals: slug, mode: "insensitive" }, status: "PUBLISHED" },
-        include: { githubRepo: { select: { owner: true, repo: true, branch: true } } },
+        where: { spaceId, githubRepoId: repo.id, status: "PUBLISHED" },
+        orderBy: { position: "asc" },
+        include: { githubRepo: { select: { owner: true, repo: true, branch: true, slug: true, displayName: true, homePageId: true, config: true } } },
       });
+      if (page) return page;
+    } else {
+      // "{repoSlug}/{rest}" — look for a page with slug = rest within this repo
+      const restSlug = slugParts.slice(1).join("/");
+      page = await prisma.page.findFirst({
+        where: { spaceId, githubRepoId: repo.id, slug: restSlug, status: "PUBLISHED" },
+        include: { githubRepo: { select: { owner: true, repo: true, branch: true, slug: true, displayName: true, homePageId: true, config: true } } },
+      });
+      if (page) return page;
+
+      // Case-insensitive
+      page = await prisma.page.findFirst({
+        where: { spaceId, githubRepoId: repo.id, slug: { equals: restSlug, mode: "insensitive" }, status: "PUBLISHED" },
+        include: { githubRepo: { select: { owner: true, repo: true, branch: true, slug: true, displayName: true, homePageId: true, config: true } } },
+      });
+      if (page) return page;
     }
-    return page;
-  },
-  ["page"],
-  { revalidate: 60 }
-);
+  }
+
+  return null;
+}
 
 const getCachedSidebar = unstable_cache(
-  async (spaceId: string) => {
-    return getSidebarSections(spaceId);
-  },
-  ["sidebar"],
+  async (spaceId: string) => getSidebarSections(spaceId),
+  ["sidebar-page"],
   { revalidate: 120 }
 );
 
@@ -106,13 +147,15 @@ const getAdjacentPages = unstable_cache(
   { revalidate: 60 }
 );
 
+// ─── Page Component ──────────────────────────────────────────────────────────
+
 export default async function DocPage({ params: paramsPromise }: PageProps) {
   const params = await paramsPromise;
   const space = await getSpace(params.space);
   if (!space) notFound();
 
   const slug = params.slug.join("/");
-  const page = await getPage(space.id, slug);
+  const page = await findPage(space.id, slug);
   if (!page) notFound();
 
   const [sections, adjacent] = await Promise.all([
@@ -136,7 +179,6 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
     href: `/docs/${params.space}/${slugParts.slice(0, i + 1).join("/")}`,
   }));
 
-  // Shared content block
   const contentBlock = (
     <>
       <nav className="mb-6 flex items-center gap-1 text-sm text-muted-foreground flex-wrap">
@@ -150,7 +192,6 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
       </nav>
 
       <h1 className={`font-bold tracking-tight mb-2 ${isModern ? "text-4xl" : "text-3xl"}`}>{page.title}</h1>
-
       {page.excerpt && <p className="text-lg text-muted-foreground mb-4">{page.excerpt}</p>}
 
       <div className="mb-8 flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
@@ -187,7 +228,7 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
     </>
   );
 
-  // ─── MINIMAL: no sidebar, centered, hamburger menu only ────────
+  // MINIMAL: no sidebar, centered, hamburger only
   if (isMinimal) {
     return (
       <>
@@ -195,15 +236,13 @@ export default async function DocPage({ params: paramsPromise }: PageProps) {
           <MobileSidebar spaceSlug={params.space} sections={sections} />
         </div>
         <main className="flex-1 min-w-0">
-          <div className="mx-auto max-w-3xl px-6 py-8 lg:px-8">
-            {contentBlock}
-          </div>
+          <div className="mx-auto max-w-3xl px-6 py-8 lg:px-8">{contentBlock}</div>
         </main>
       </>
     );
   }
 
-  // ─── CLASSIC & MODERN: collapsible sidebar + content + TOC ─────
+  // CLASSIC & MODERN: collapsible sidebar + content + TOC
   return (
     <>
       <div className="fixed bottom-4 left-4 z-30 md:hidden">
