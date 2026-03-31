@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { SyncModal } from "@/components/admin/sync-modal";
 import {
   Github,
   Settings,
@@ -60,8 +61,9 @@ export default function RepositoriesPage() {
   const [repos, setRepos] = useState<Repo[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState<Set<string>>(new Set());
   const [showModal, setShowModal] = useState(false);
+  const [syncRepoId, setSyncRepoId] = useState<string | null>(null);
+  const [syncRepoName, setSyncRepoName] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -79,29 +81,9 @@ export default function RepositoriesPage() {
     setRepos(r);
   }
 
-  async function handleSync(id: string) {
-    setSyncing((s) => new Set([...s, id]));
-    fetch(`/api/admin/repos/${id}/sync`, { method: "POST" }).catch(() => {});
-    let attempts = 0;
-    const poll = setInterval(async () => {
-      attempts++;
-      const res = await fetch(`/api/admin/repos/${id}`);
-      if (res.ok) {
-        const repo = await res.json();
-        // Update the repo in our list with latest progress
-        setRepos(prev => prev.map(r => r.id === id ? { ...r, pageCount: repo.pageCount, config: repo.config, lastSyncStatus: repo.lastSyncStatus, lastSyncError: repo.lastSyncError, _count: { pages: repo.pages?.length || repo.pageCount || r._count.pages } } : r));
-        if (repo.lastSyncStatus !== "SYNCING" || attempts > 60) {
-          clearInterval(poll);
-          setSyncing((s) => { const n = new Set(s); n.delete(id); return n; });
-          refresh();
-        }
-      }
-      if (attempts > 60) {
-        clearInterval(poll);
-        setSyncing((s) => { const n = new Set(s); n.delete(id); return n; });
-        refresh();
-      }
-    }, 3000);
+  function openSync(repo: Repo) {
+    setSyncRepoId(repo.id);
+    setSyncRepoName(`${repo.owner}/${repo.repo}`);
   }
 
   async function handleDelete(id: string) {
@@ -134,7 +116,6 @@ export default function RepositoriesPage() {
       ) : (
         <div className="grid gap-3">
           {repos.map((repo) => {
-            const isSyncing = syncing.has(repo.id) || repo.lastSyncStatus === "SYNCING";
             return (
               <Card key={repo.id}>
                 <CardContent className="flex items-center gap-4 p-4">
@@ -142,29 +123,10 @@ export default function RepositoriesPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{repo.owner}/{repo.repo}</span>
-                      {(() => {
-                        const progress = repo.config?.syncProgress;
-                        if (isSyncing || repo.lastSyncStatus === "SYNCING") {
-                          return (
-                            <Badge variant="warning" className="text-[10px] gap-1">
-                              <RefreshCw className="h-3 w-3 animate-spin" />
-                              {progress?.total ? `Syncing ${progress.synced || 0}/${progress.total}...` : "Starting sync..."}
-                            </Badge>
-                          );
-                        }
-                        return (
-                          <Badge variant={repo.lastSyncStatus === "SUCCESS" ? "success" : repo.lastSyncStatus === "ERROR" ? "destructive" : "secondary"} className="text-[10px]">
-                            {repo._count.pages} pages{repo.lastSyncStatus === "SUCCESS" ? " synced" : ""}
-                          </Badge>
-                        );
-                      })()}
+                      <Badge variant={repo.lastSyncStatus === "SUCCESS" ? "success" : repo.lastSyncStatus === "ERROR" ? "destructive" : "secondary"} className="text-[10px]">
+                        {repo._count.pages} pages
+                      </Badge>
                     </div>
-                    {/* Progress bar during sync */}
-                    {(isSyncing || repo.lastSyncStatus === "SYNCING") && repo.config?.syncProgress?.total > 0 && (
-                      <div className="mt-1.5 h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${Math.round(((repo.config.syncProgress.synced || 0) / repo.config.syncProgress.total) * 100)}%` }} />
-                      </div>
-                    )}
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                       <span className="flex items-center gap-1"><GitBranch className="h-3 w-3" />{repo.branch}</span>
                       <span>{repo.docsPath}</span>
@@ -187,8 +149,8 @@ export default function RepositoriesPage() {
                     <Link href={`/admin/repositories/${repo.id}`}>
                       <Button variant="outline" size="sm"><Settings className="mr-1 h-3 w-3" />Customize</Button>
                     </Link>
-                    <Button variant="outline" size="sm" onClick={() => handleSync(repo.id)} disabled={isSyncing}>
-                      <RefreshCw className={`mr-1 h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} />{isSyncing ? "Syncing..." : "Sync"}
+                    <Button variant="outline" size="sm" onClick={() => openSync(repo)}>
+                      <RefreshCw className="mr-1 h-3 w-3" />Sync
                     </Button>
                     <a href={`https://github.com/${repo.owner}/${repo.repo}`} target="_blank" rel="noopener noreferrer">
                       <Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="h-3.5 w-3.5" /></Button>
@@ -200,6 +162,15 @@ export default function RepositoriesPage() {
             );
           })}
         </div>
+      )}
+
+      {syncRepoId && (
+        <SyncModal
+          repoId={syncRepoId}
+          repoName={syncRepoName}
+          onClose={() => setSyncRepoId(null)}
+          onDone={() => { setSyncRepoId(null); refresh(); }}
+        />
       )}
 
       {showModal && (

@@ -11,6 +11,7 @@ import {
   Link2, Upload, ImageIcon, Monitor, Smartphone, Tablet, Home,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SyncModal as SyncModalComponent } from "@/components/admin/sync-modal";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,7 +70,8 @@ export default function SiteDetailPage() {
 
   // Content
   const [showRepoModal, setShowRepoModal] = useState(false);
-  const [syncing, setSyncing] = useState<Set<string>>(new Set());
+  const [syncRepoId, setSyncRepoId] = useState<string | null>(null);
+  const [syncRepoName, setSyncRepoName] = useState("");
   const [pageSearch, setPageSearch] = useState("");
   const [homepageId, setHomepageId] = useState<string | null>(null);
 
@@ -179,25 +181,9 @@ export default function SiteDetailPage() {
 
   // ─── Content actions ───────────────────────────────────────────
 
-  async function syncRepo(rid:string) {
-    setSyncing(s => new Set([...s,rid]));
-    fetch(`/api/admin/repos/${rid}/sync`, { method:"POST" }).catch(() => {});
-    // Poll for progress
-    const poll = setInterval(async () => {
-      const res = await fetch(`/api/admin/repos/${rid}`);
-      if (res.ok) {
-        const repo = await res.json();
-        // Update the repo in our list to show progress
-        setRepos(prev => prev.map(r => r.id === rid ? { ...r, _count: { pages: repo.pageCount || 0 }, lastSyncStatus: repo.lastSyncStatus, config: repo.config } : r));
-        if (repo.lastSyncStatus !== "SYNCING") {
-          clearInterval(poll);
-          setSyncing(s => { const n = new Set(s); n.delete(rid); return n; });
-          loadAll();
-        }
-      }
-    }, 2000);
-    // Safety timeout
-    setTimeout(() => { clearInterval(poll); setSyncing(s => { const n = new Set(s); n.delete(rid); return n; }); }, 180000);
+  function openSyncModal(r: any) {
+    setSyncRepoId(r.id);
+    setSyncRepoName(`${r.owner}/${r.repo}`);
   }
   async function delRepo(rid:string) {
     if (!confirm("Remove this repo and all its synced pages?")) return;
@@ -452,33 +438,21 @@ export default function SiteDetailPage() {
             {repos.length===0 ? (
               <Card><CardContent className="py-8 text-center"><Github className="mx-auto h-8 w-8 mb-2 opacity-50" /><p className="text-sm text-muted-foreground">No repos connected.</p><Button size="sm" className="mt-3" onClick={()=>setShowRepoModal(true)}><Github className="mr-1.5 h-3.5 w-3.5" />Connect repo</Button></CardContent></Card>
             ) : (
-              <div className="grid gap-2">{repos.map(r=>{const s=syncing.has(r.id)||r.lastSyncStatus==="SYNCING"; const progress=(r as any).config?.syncProgress; return (
+              <div className="grid gap-2">{repos.map(r=>{return (
                 <Card key={r.id}><CardContent className="flex items-center gap-4 p-4">
                   <Github className="h-5 w-5 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{r.owner}/{r.repo}</span>
-                      {s ? (
-                        <Badge variant="warning" className="text-[10px] gap-1">
-                          <RefreshCw className="h-3 w-3 animate-spin" />
-                          {progress?.total ? `Syncing ${progress.synced || 0}/${progress.total}...` : "Starting sync..."}
-                        </Badge>
-                      ) : (
-                        <Badge variant={r.lastSyncStatus==="SUCCESS"?"success":r.lastSyncStatus==="ERROR"?"destructive":"secondary"} className="text-[10px]">
-                          {r._count.pages} pages{r.lastSyncStatus==="SUCCESS"?" synced":""}
-                        </Badge>
-                      )}
+                      <Badge variant={r.lastSyncStatus==="SUCCESS"?"success":r.lastSyncStatus==="ERROR"?"destructive":"secondary"} className="text-[10px]">
+                        {r._count.pages} pages
+                      </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5">{r.branch} · {r.docsPath}{r.lastSyncAt&&` · ${new Date(r.lastSyncAt).toLocaleDateString()}`}</div>
                     {r.lastSyncError&&<p className="text-xs text-red-500 mt-1">{r.lastSyncError}</p>}
-                    {s && progress?.total > 0 && (
-                      <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full bg-primary rounded-full transition-all duration-300" style={{width:`${Math.round(((progress.synced||0)/progress.total)*100)}%`}} />
-                      </div>
-                    )}
                   </div>
                   <Link href={`/admin/repositories/${r.id}`}><Button variant="outline" size="sm"><Settings className="mr-1 h-3 w-3" />Customize</Button></Link>
-                  <Button variant="outline" size="sm" onClick={()=>syncRepo(r.id)} disabled={s}><RefreshCw className={`mr-1 h-3 w-3 ${s?"animate-spin":""}`} />{s?"Syncing":"Sync"}</Button>
+                  <Button variant="outline" size="sm" onClick={()=>openSyncModal(r)}><RefreshCw className="mr-1 h-3 w-3" />Sync</Button>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={()=>delRepo(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </CardContent></Card>
               );})}</div>
@@ -880,6 +854,9 @@ export default function SiteDetailPage() {
 
       {/* ━━━ REPO MODAL ━━━ */}
       {showRepoModal && <RepoModal spaceId={id} onClose={()=>setShowRepoModal(false)} onDone={()=>{setShowRepoModal(false);loadAll()}} />}
+
+      {/* Sync Modal */}
+      {syncRepoId && <SyncModalComponent repoId={syncRepoId} repoName={syncRepoName} onClose={()=>setSyncRepoId(null)} onDone={()=>{setSyncRepoId(null);loadAll()}} />}
 
       {/* ━━━ ADD MENU MODAL ━━━ */}
       {addModal && (
