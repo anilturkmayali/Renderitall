@@ -14,29 +14,32 @@ export function CollapsibleSidebar({
 
   return (
     <>
-      {/* Toggle button */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="fixed top-[4.25rem] left-0 z-30 hidden md:flex items-center justify-center h-8 w-8 rounded-r-md border border-l-0 bg-background shadow-sm text-muted-foreground hover:text-foreground transition-colors"
-        title={open ? "Collapse sidebar" : "Expand sidebar"}
-      >
-        {open ? (
-          <PanelLeftClose className="h-4 w-4" />
-        ) : (
-          <PanelLeft className="h-4 w-4" />
-        )}
-      </button>
-
       {/* Sidebar */}
       <aside
-        className={`hidden shrink-0 border-r bg-sidebar md:block transition-all duration-200 ${
-          open ? "w-64" : "w-0 overflow-hidden border-0"
+        className={`hidden shrink-0 border-r bg-sidebar md:block transition-all duration-200 relative ${
+          open ? "w-64" : "w-0 overflow-hidden border-r-0"
         }`}
       >
         <div className="sticky top-14 h-[calc(100vh-3.5rem)] w-64">
           {children}
         </div>
       </aside>
+
+      {/* Toggle button — positioned at the edge of the sidebar */}
+      <button
+        onClick={() => setOpen(!open)}
+        className={`fixed z-30 hidden md:flex items-center justify-center h-7 w-7 rounded-full border bg-background shadow-md text-muted-foreground hover:text-foreground hover:shadow-lg transition-all ${
+          open ? "left-[248px]" : "left-3"
+        }`}
+        style={{ top: "4.25rem" }}
+        title={open ? "Collapse sidebar" : "Expand sidebar"}
+      >
+        {open ? (
+          <PanelLeftClose className="h-3.5 w-3.5" />
+        ) : (
+          <PanelLeft className="h-3.5 w-3.5" />
+        )}
+      </button>
     </>
   );
 }
