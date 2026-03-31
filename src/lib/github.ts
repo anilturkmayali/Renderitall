@@ -114,12 +114,14 @@ export function pathToSlug(filePath: string, docsPath: string): string {
   if (normalizedDocsPath) {
     relative = filePath.replace(normalizedDocsPath + "/", "");
   }
-  return relative
+  let slug = relative
     .replace(/\.mdx?$/, "")
     .replace(/\/index$/, "")
-    .replace(/\/README$/i, "")
     .toLowerCase()
     .replace(/\s+/g, "-");
+  // Root README becomes "readme" not empty string
+  if (slug === "readme" || slug === "") slug = "readme";
+  return slug;
 }
 
 export function slugToTitle(slug: string): string {
