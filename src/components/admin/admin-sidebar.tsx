@@ -10,6 +10,7 @@ import {
   FileText,
   Github,
   Settings,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,6 +20,7 @@ const navItems = [
   { label: "Sites", href: "/admin/spaces", icon: Layers },
   { label: "Pages", href: "/admin/pages", icon: FileText },
   { label: "Repositories", href: "/admin/repositories", icon: Github },
+  { label: "Team", href: "/admin/team", icon: Users },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

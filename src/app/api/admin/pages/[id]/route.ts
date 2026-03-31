@@ -40,6 +40,19 @@ export async function PUT(
   const { id } = await params;
   const body = await req.json();
 
+  // Save a revision before updating (for version history)
+  const currentPage = await prisma.page.findUnique({ where: { id }, select: { title: true, content: true } });
+  if (currentPage && currentPage.content) {
+    await prisma.revision.create({
+      data: {
+        pageId: id,
+        title: currentPage.title,
+        content: currentPage.content,
+        authorId: session.user.id || undefined,
+      },
+    });
+  }
+
   const page = await prisma.page.update({
     where: { id },
     data: {
