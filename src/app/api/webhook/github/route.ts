@@ -3,28 +3,25 @@ import { prisma } from "@/lib/prisma";
 import { syncRepository } from "@/lib/sync";
 import crypto from "crypto";
 
-const WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
+export const maxDuration = 60;
 
-function verifySignature(payload: string, signature: string | null): boolean {
-  if (!WEBHOOK_SECRET || !signature) return false;
-  const hmac = crypto.createHmac("sha256", WEBHOOK_SECRET);
+function verifySignature(payload: string, signature: string | null, secret: string): boolean {
+  if (!signature) return false;
+  const hmac = crypto.createHmac("sha256", secret);
   const digest = `sha256=${hmac.update(payload).digest("hex")}`;
-  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
+  try {
+    return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(signature));
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const signature = req.headers.get("x-hub-signature-256");
-
-  // Verify webhook signature if secret is configured
-  if (WEBHOOK_SECRET && !verifySignature(body, signature)) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-  }
-
   const event = req.headers.get("x-github-event");
-  const payload = JSON.parse(body);
 
-  // Handle ping event (sent when webhook is first set up)
+  // Handle ping (sent when webhook is first set up)
   if (event === "ping") {
     return NextResponse.json({ message: "pong" });
   }
@@ -34,10 +31,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Ignored event", event });
   }
 
+  let payload;
+  try {
+    payload = JSON.parse(body);
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
   const { repository, ref } = payload;
+  if (!repository?.full_name || !ref) {
+    return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+  }
+
   const branch = ref.replace("refs/heads/", "");
-  const fullName = repository.full_name;
-  const [owner, repo] = fullName.split("/");
+  const [owner, repo] = repository.full_name.split("/");
 
   // Find matching repo configurations
   const repoConfigs = await prisma.gitHubRepo.findMany({
@@ -48,15 +55,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "No matching repos configured" });
   }
 
-  // Sync each matching repo using the sync engine
   const results = [];
+
   for (const repoConfig of repoConfigs) {
-    const result = await syncRepository(repoConfig.id);
-    results.push({
-      repoId: repoConfig.id,
-      ...result,
-    });
+    // Verify signature if the repo has a webhook secret
+    if (repoConfig.webhookSecret) {
+      if (!verifySignature(body, signature, repoConfig.webhookSecret)) {
+        results.push({ repoId: repoConfig.id, error: "Invalid signature" });
+        continue;
+      }
+    }
+
+    // Run sync — this re-imports only changed files (SHA comparison)
+    try {
+      const result = await syncRepository(repoConfig.id);
+      results.push({ repoId: repoConfig.id, ...result });
+    } catch (err: any) {
+      results.push({ repoId: repoConfig.id, error: err.message });
+    }
   }
 
-  return NextResponse.json({ message: "Sync completed", results });
+  return NextResponse.json({ message: "Processed", results });
 }

@@ -33,6 +33,7 @@ interface Repo {
   lastSyncAt: string | null;
   lastSyncStatus: string;
   pageCount: number;
+  webhookId: number | null;
   pages: RepoPage[];
   space: { name: string; slug: string };
 }
@@ -230,6 +231,54 @@ export default function RepoDetailPage() {
               />
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Auto-sync */}
+      <Card>
+        <CardHeader className="py-3">
+          <CardTitle className="text-base">Auto-sync</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {repo.webhookId ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <span className="text-sm font-medium">Active</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Changes pushed to GitHub are automatically imported.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={async () => {
+                await fetch(`/api/admin/repos/${id}/webhook`, { method: "DELETE" });
+                loadRepo();
+              }}>
+                Disable auto-sync
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-muted-foreground" />
+                  <span className="text-sm font-medium">Not active</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Content is only updated when you manually click Import. Enable auto-sync to get updates automatically when changes are pushed to GitHub.
+                </p>
+              </div>
+              <Button size="sm" onClick={async () => {
+                const res = await fetch(`/api/admin/repos/${id}/webhook`, { method: "POST" });
+                const data = await res.json();
+                if (!data.success) alert(data.message);
+                loadRepo();
+              }}>
+                Enable auto-sync
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

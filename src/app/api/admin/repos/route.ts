@@ -121,9 +121,9 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Auto-trigger initial sync in the background
-  syncRepository(githubRepo.id).catch((err) => {
-    console.error(`Auto-sync failed for ${owner}/${repo}:`, err);
+  // Auto-setup webhook for automatic updates on push (non-blocking)
+  import("@/lib/webhook-setup").then(({ setupWebhook }) => {
+    setupWebhook(githubRepo.id).catch(() => {});
   });
 
   return NextResponse.json(githubRepo, { status: 201 });

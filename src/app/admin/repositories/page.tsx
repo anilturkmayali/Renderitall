@@ -40,6 +40,7 @@ interface Repo {
   lastSyncError: string | null;
   pageCount: number;
   config: any;
+  webhookId: number | null;
   _count: { pages: number };
   space: { name: string; slug: string };
 }
@@ -121,12 +122,14 @@ export default function RepositoriesPage() {
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
                       <span className="flex items-center gap-1"><GitBranch className="h-3 w-3" />{repo.branch}</span>
                       <span>{repo.docsPath}</span>
-                      {repo.lastSyncAt && <span>· Synced {new Date(repo.lastSyncAt).toLocaleDateString()}</span>}
-                      {repo.lastSyncStatus === "ERROR" && (
-                        <Badge variant="destructive" className="text-[10px]">Sync failed</Badge>
+                      {repo.lastSyncAt && <span>· Imported {new Date(repo.lastSyncAt).toLocaleDateString()}</span>}
+                      {repo.webhookId ? (
+                        <Badge variant="success" className="text-[10px]">Auto-sync on</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[10px]">Manual only</Badge>
                       )}
-                      {repo.lastSyncStatus === "SYNCING" && (
-                        <Badge variant="warning" className="text-[10px]">Syncing...</Badge>
+                      {repo.lastSyncStatus === "ERROR" && (
+                        <Badge variant="destructive" className="text-[10px]">Import failed</Badge>
                       )}
                     </div>
                     {repo.lastSyncError && (
