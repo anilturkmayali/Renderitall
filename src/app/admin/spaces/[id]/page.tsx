@@ -474,7 +474,19 @@ export default function SiteDetailPage() {
                          item.children ? <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" /> :
                          <Link2 className="h-4 w-4 text-muted-foreground shrink-0" />}
                         <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium block truncate">{item.label}</span>
+                          <span
+                            className="text-sm font-medium block truncate cursor-pointer hover:text-primary"
+                            title="Click to rename"
+                            onClick={() => {
+                              const newName = prompt("Rename menu item:", item.label);
+                              if (newName && newName.trim()) {
+                                const updated = [...topMenu];
+                                updated[i] = { ...updated[i], label: newName.trim() };
+                                setTopMenu(updated);
+                                setTopMenuDirty(true);
+                              }
+                            }}
+                          >{item.label}</span>
                           {item.url && <span className="text-xs text-muted-foreground truncate block">{item.url}</span>}
                           {item.repoId && <span className="text-xs text-muted-foreground">Repository section</span>}
                           {item.children && <span className="text-xs text-muted-foreground">Dropdown · {item.children.length} items</span>}
@@ -495,7 +507,21 @@ export default function SiteDetailPage() {
                           {item.children.map((child, ci) => (
                             <div key={ci} className="flex items-center gap-2 rounded border px-2 py-1.5 text-sm">
                               {child.repoId ? <Github className="h-3 w-3 text-muted-foreground" /> : <Link2 className="h-3 w-3 text-muted-foreground" />}
-                              <span className="flex-1 truncate text-xs">{child.label}</span>
+                              <span
+                                className="flex-1 truncate text-xs cursor-pointer hover:text-primary"
+                                title="Click to rename"
+                                onClick={() => {
+                                  const newName = prompt("Rename:", child.label);
+                                  if (newName && newName.trim()) {
+                                    const updated = [...topMenu];
+                                    const children = [...(updated[i].children || [])];
+                                    children[ci] = { ...children[ci], label: newName.trim() };
+                                    updated[i] = { ...updated[i], children };
+                                    setTopMenu(updated);
+                                    setTopMenuDirty(true);
+                                  }
+                                }}
+                              >{child.label}</span>
                               <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={()=>{
                                 const u=[...topMenu]; u[i]={...u[i],children:(u[i].children||[]).filter((_,j)=>j!==ci)}; setTopMenu(u); setTopMenuDirty(true);
                               }}><Trash2 className="h-3 w-3" /></Button>
@@ -609,7 +635,14 @@ export default function SiteDetailPage() {
                 <div key={item.id||`n-${i}`}>
                   <div className={`flex items-center gap-3 px-4 py-3 ${item.type==="SECTION"?"bg-muted/30":""}`}>
                     {item.type==="SECTION"?<FolderOpen className="h-4 w-4 text-primary shrink-0" />:item.type==="LINK"?<Link2 className="h-4 w-4 text-muted-foreground shrink-0" />:<FileText className="h-4 w-4 text-muted-foreground shrink-0" />}
-                    <span className={`text-sm flex-1 truncate ${item.type==="SECTION"?"font-semibold":""}`}>{item.label}</span>
+                    <span
+                      className={`text-sm flex-1 truncate cursor-pointer hover:text-primary ${item.type==="SECTION"?"font-semibold":""}`}
+                      title="Click to rename"
+                      onClick={()=>{
+                        const newName=prompt("Rename:",item.label);
+                        if(newName&&newName.trim()){const u=[...navItems];u[i]={...u[i],label:newName.trim()};setNavItems(u);setNavDirty(true);}
+                      }}
+                    >{item.label}</span>
                     <Badge variant="outline" className="text-[10px]">{item.type==="SECTION"?"Section":item.type==="LINK"?"Link":"Page"}</Badge>
                     <div className="flex gap-1 shrink-0">
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveNav(i,"up")} disabled={i===0}><ChevronUp className="h-3.5 w-3.5" /></Button>
@@ -622,7 +655,11 @@ export default function SiteDetailPage() {
                     <div className="border-l-2 border-primary/20 ml-6">
                       {item.children.map((ch,ci)=>(
                         <div key={ch.id||`c-${ci}`} className="flex items-center gap-3 px-4 py-2.5 border-b last:border-0 hover:bg-muted/30">
-                          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" /><span className="text-sm flex-1 truncate">{ch.label}</span>
+                          <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-sm flex-1 truncate cursor-pointer hover:text-primary" title="Click to rename" onClick={()=>{
+                            const newName=prompt("Rename:",ch.label);
+                            if(newName&&newName.trim()){const u=[...navItems];const children=[...u[i].children];children[ci]={...children[ci],label:newName.trim()};u[i]={...u[i],children};setNavItems(u);setNavDirty(true);}
+                          }}>{ch.label}</span>
                           <div className="flex gap-1 shrink-0">
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={()=>moveChild(i,ci,"up")} disabled={ci===0}><ChevronUp className="h-3 w-3" /></Button>
                             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={()=>moveChild(i,ci,"down")} disabled={ci===item.children.length-1}><ChevronDown className="h-3 w-3" /></Button>
