@@ -495,10 +495,33 @@ export default function SiteDetailPage() {
                           {item.repoId ? "Repo" : item.children ? "Dropdown" : "Link"}
                         </Badge>
                         <div className="flex gap-1 shrink-0">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"up")} disabled={i===0}><ChevronUp className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"down")} disabled={i===topMenu.length-1}><ChevronDown className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"up")} disabled={i===0} title="Move up"><ChevronUp className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>moveTopMenuItem(i,"down")} disabled={i===topMenu.length-1} title="Move down"><ChevronDown className="h-3.5 w-3.5" /></Button>
+                          {/* Indent: move this item into the one above as a sub-item */}
+                          {!item.children && i > 0 && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Make sub-item of above" onClick={()=>{
+                              // Find nearest item above that can accept children
+                              for(let j=i-1;j>=0;j--){
+                                const parent=topMenu[j];
+                                // Move into this parent
+                                const child={...topMenu[i]};
+                                const updated=topMenu.filter((_,k)=>k!==i);
+                                // Adjust index since we removed an item
+                                const parentIdx=j;
+                                if(updated[parentIdx].children){
+                                  updated[parentIdx]={...updated[parentIdx],children:[...(updated[parentIdx].children||[]),child]};
+                                } else {
+                                  // Convert the parent into a dropdown
+                                  updated[parentIdx]={...updated[parentIdx],children:[child]};
+                                }
+                                setTopMenu(updated);
+                                setTopMenuDirty(true);
+                                break;
+                              }
+                            }}><CornerDownRight className="h-3.5 w-3.5" /></Button>
+                          )}
                           {item.children && <Button variant="ghost" size="icon" className="h-7 w-7" onClick={()=>{setTopEditDropdown(i);setShowTopMenuAdd(true)}} title="Add sub-item"><Plus className="h-3.5 w-3.5" /></Button>}
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={()=>removeTopMenuItem(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={()=>removeTopMenuItem(i)} title="Remove"><Trash2 className="h-3.5 w-3.5" /></Button>
                         </div>
                       </div>
                       {/* Dropdown children */}
@@ -522,7 +545,17 @@ export default function SiteDetailPage() {
                                   }
                                 }}
                               >{child.label}</span>
-                              <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" onClick={()=>{
+                              {/* Outdent: move child out to top level */}
+                              <Button variant="ghost" size="icon" className="h-5 w-5" title="Move to top level" onClick={()=>{
+                                const childItem={...child};
+                                const u=[...topMenu];
+                                u[i]={...u[i],children:(u[i].children||[]).filter((_,j)=>j!==ci)};
+                                // If parent has no more children, remove the children array
+                                if(u[i].children&&u[i].children.length===0) { const {children:_,...rest}=u[i] as any; u[i]=rest; }
+                                u.splice(i+1,0,childItem);
+                                setTopMenu(u); setTopMenuDirty(true);
+                              }}><CornerUpLeft className="h-3 w-3" /></Button>
+                              <Button variant="ghost" size="icon" className="h-5 w-5 text-red-500" title="Remove" onClick={()=>{
                                 const u=[...topMenu]; u[i]={...u[i],children:(u[i].children||[]).filter((_,j)=>j!==ci)}; setTopMenu(u); setTopMenuDirty(true);
                               }}><Trash2 className="h-3 w-3" /></Button>
                             </div>
