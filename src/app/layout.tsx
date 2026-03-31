@@ -7,9 +7,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "Open Docs — Beautiful Documentation, Powered by GitHub",
+  title: "Renderitall — Turn GitHub repos into documentation sites",
   description:
-    "Publish beautiful, searchable documentation sites driven by GitHub as the master source of content.",
+    "Connect your GitHub repositories and publish professional documentation websites. Your markdown is the source of truth.",
 };
 
 export default function RootLayout({

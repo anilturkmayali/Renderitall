@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BookOpen,
   LayoutDashboard,
   Layers,
-  Globe,
   FileText,
   Github,
   Settings,
@@ -30,8 +28,8 @@ export function AdminSidebar() {
   return (
     <aside className="hidden w-60 shrink-0 border-r bg-sidebar md:flex md:flex-col">
       <div className="flex h-14 items-center gap-2 border-b px-4">
-        <BookOpen className="h-5 w-5 text-primary" />
-        <span className="font-semibold">Open Docs</span>
+        <div className="h-6 w-6 rounded-md bg-primary flex items-center justify-center text-white font-bold text-[10px]">R</div>
+        <span className="font-semibold text-sm">Renderitall</span>
         <span className="ml-auto rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
           Admin
         </span>
