@@ -172,10 +172,14 @@ export async function syncRepository(repoId: string): Promise<SyncResult> {
     return { success: false, pagessynced: 0, navItemsCreated: 0, error: "Sync already in progress" } as any;
   }
 
-  // Mark as syncing
+  // Mark as syncing with progress tracking
   await prisma.gitHubRepo.update({
     where: { id: repoId },
-    data: { lastSyncStatus: "SYNCING" },
+    data: {
+      lastSyncStatus: "SYNCING",
+      pageCount: 0,
+      config: { ...(typeof repoConfig.config === "object" && repoConfig.config ? repoConfig.config as any : {}), syncProgress: { synced: 0, total: 0 } } as any,
+    },
   });
 
   try {
@@ -235,7 +239,16 @@ export async function syncRepository(repoId: string): Promise<SyncResult> {
     );
 
     let pagessynced = 0;
+    const totalFiles = mdFiles.length;
     const pageMap = new Map<string, string>(); // path -> pageId
+
+    // Update total count so UI can show progress
+    await prisma.gitHubRepo.update({
+      where: { id: repoId },
+      data: {
+        config: { ...(typeof repoConfig.config === "object" && repoConfig.config ? repoConfig.config as any : {}), syncProgress: { synced: 0, total: totalFiles } } as any,
+      },
+    });
 
     for (const file of mdFiles) {
       try {
@@ -309,9 +322,20 @@ export async function syncRepository(repoId: string): Promise<SyncResult> {
 
         pageMap.set(file.path, page.id);
         pagessynced++;
+
+        // Update progress every 3 files (to reduce DB writes)
+        if (pagessynced % 3 === 0 || pagessynced === totalFiles) {
+          await prisma.gitHubRepo.update({
+            where: { id: repoId },
+            data: {
+              pageCount: pagessynced,
+              config: { ...(typeof repoConfig.config === "object" && repoConfig.config ? repoConfig.config as any : {}), syncProgress: { synced: pagessynced, total: totalFiles } } as any,
+            },
+          });
+        }
       } catch (err) {
         console.error(`Failed to sync file ${file.path}:`, err);
-        // Continue with other files
+        pagessynced++; // still count it for progress
       }
     }
 

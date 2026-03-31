@@ -8,7 +8,7 @@ import {
   FolderOpen, FileText, Search, RefreshCw, GripVertical, ChevronUp,
   ChevronDown, FolderGit2, Lock, Star, X, ExternalLink, PenTool,
   Eye, Palette, Settings, Globe, CornerDownRight, CornerUpLeft,
-  Link2, Upload, ImageIcon, Monitor, Smartphone, Tablet,
+  Link2, Upload, ImageIcon, Monitor, Smartphone, Tablet, Home,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +71,7 @@ export default function SiteDetailPage() {
   const [showRepoModal, setShowRepoModal] = useState(false);
   const [syncing, setSyncing] = useState<Set<string>>(new Set());
   const [pageSearch, setPageSearch] = useState("");
+  const [homepageId, setHomepageId] = useState<string | null>(null);
 
   // Sidebar Menu
   const [navDirty, setNavDirty] = useState(false);
@@ -140,6 +141,7 @@ export default function SiteDetailPage() {
       setForm({ primaryColor: s.primaryColor||"#3b82f6", accentColor: s.accentColor||"", defaultTheme: s.defaultTheme||"SYSTEM", headerLayout: s.headerLayout||"default" });
       setSettings({ name: s.name||"", slug: s.slug||"", description: s.description||"", isPublic: s.isPublic!==false, seoTitle: s.seoTitle||"", seoDescription: s.seoDescription||"", customCss: s.customCss||"" });
       setLogo(s.org?.logo || null);
+      setHomepageId(s.icon || null); // icon field stores homepage ID
     }
     if (rRes.ok) setRepos((await rRes.json()).filter((r:any) => r.spaceId === id));
     if (pRes.ok) setPages(await pRes.json());
@@ -179,15 +181,39 @@ export default function SiteDetailPage() {
 
   async function syncRepo(rid:string) {
     setSyncing(s => new Set([...s,rid]));
-    await fetch(`/api/admin/repos/${rid}/sync`, { method:"POST" });
-    setSyncing(s => { const n=new Set(s); n.delete(rid); return n; });
-    loadAll();
+    fetch(`/api/admin/repos/${rid}/sync`, { method:"POST" }).catch(() => {});
+    // Poll for progress
+    const poll = setInterval(async () => {
+      const res = await fetch(`/api/admin/repos/${rid}`);
+      if (res.ok) {
+        const repo = await res.json();
+        // Update the repo in our list to show progress
+        setRepos(prev => prev.map(r => r.id === rid ? { ...r, _count: { pages: repo.pageCount || 0 }, lastSyncStatus: repo.lastSyncStatus, config: repo.config } : r));
+        if (repo.lastSyncStatus !== "SYNCING") {
+          clearInterval(poll);
+          setSyncing(s => { const n = new Set(s); n.delete(rid); return n; });
+          loadAll();
+        }
+      }
+    }, 2000);
+    // Safety timeout
+    setTimeout(() => { clearInterval(poll); setSyncing(s => { const n = new Set(s); n.delete(rid); return n; }); }, 180000);
   }
   async function delRepo(rid:string) {
     if (!confirm("Remove this repo and all its synced pages?")) return;
     await fetch(`/api/admin/repos/${rid}`, { method:"DELETE" });
     loadAll();
   }
+  async function setHomepage(pageId: string | null) {
+    setHomepageId(pageId);
+    // Save to Space.icon field
+    await fetch(`/api/admin/spaces/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ icon: pageId }),
+    });
+  }
+
   async function delPage(pid:string, title:string) {
     if (!confirm(`Delete "${title}"?`)) return;
     await fetch(`/api/admin/pages/${pid}`, { method:"DELETE" });
@@ -426,13 +452,30 @@ export default function SiteDetailPage() {
             {repos.length===0 ? (
               <Card><CardContent className="py-8 text-center"><Github className="mx-auto h-8 w-8 mb-2 opacity-50" /><p className="text-sm text-muted-foreground">No repos connected.</p><Button size="sm" className="mt-3" onClick={()=>setShowRepoModal(true)}><Github className="mr-1.5 h-3.5 w-3.5" />Connect repo</Button></CardContent></Card>
             ) : (
-              <div className="grid gap-2">{repos.map(r=>{const s=syncing.has(r.id); return (
+              <div className="grid gap-2">{repos.map(r=>{const s=syncing.has(r.id)||r.lastSyncStatus==="SYNCING"; const progress=(r as any).config?.syncProgress; return (
                 <Card key={r.id}><CardContent className="flex items-center gap-4 p-4">
                   <Github className="h-5 w-5 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2"><span className="font-medium text-sm">{r.owner}/{r.repo}</span><Badge variant={r.lastSyncStatus==="SUCCESS"?"success":r.lastSyncStatus==="ERROR"?"destructive":"secondary"} className="text-[10px]">{r._count.pages} pages</Badge></div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{r.owner}/{r.repo}</span>
+                      {s ? (
+                        <Badge variant="warning" className="text-[10px] gap-1">
+                          <RefreshCw className="h-3 w-3 animate-spin" />
+                          {progress?.total ? `Syncing ${progress.synced || 0}/${progress.total}...` : "Starting sync..."}
+                        </Badge>
+                      ) : (
+                        <Badge variant={r.lastSyncStatus==="SUCCESS"?"success":r.lastSyncStatus==="ERROR"?"destructive":"secondary"} className="text-[10px]">
+                          {r._count.pages} pages{r.lastSyncStatus==="SUCCESS"?" synced":""}
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground mt-0.5">{r.branch} · {r.docsPath}{r.lastSyncAt&&` · ${new Date(r.lastSyncAt).toLocaleDateString()}`}</div>
                     {r.lastSyncError&&<p className="text-xs text-red-500 mt-1">{r.lastSyncError}</p>}
+                    {s && progress?.total > 0 && (
+                      <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full bg-primary rounded-full transition-all duration-300" style={{width:`${Math.round(((progress.synced||0)/progress.total)*100)}%`}} />
+                      </div>
+                    )}
                   </div>
                   <Link href={`/admin/repositories/${r.id}`}><Button variant="outline" size="sm"><Settings className="mr-1 h-3 w-3" />Customize</Button></Link>
                   <Button variant="outline" size="sm" onClick={()=>syncRepo(r.id)} disabled={s}><RefreshCw className={`mr-1 h-3 w-3 ${s?"animate-spin":""}`} />{s?"Syncing":"Sync"}</Button>
@@ -458,6 +501,11 @@ export default function SiteDetailPage() {
                   <div className="flex-1 min-w-0"><span className="font-medium truncate block">{p.title}</span><span className="text-xs text-muted-foreground">/{p.slug}</span></div>
                   <Badge variant={p.source==="GITHUB"?"outline":"secondary"} className="text-[10px]">{p.source==="GITHUB"?"GitHub":"Custom"}</Badge>
                   {inNav.has(p.id)?<Badge variant="success" className="text-[10px]">In Menu</Badge>:null}
+                  {homepageId===p.id ? (
+                    <Badge variant="success" className="text-[10px] gap-1 cursor-pointer" onClick={()=>setHomepage(null)}><Home className="h-3 w-3" />Homepage</Badge>
+                  ) : (
+                    <Button variant="ghost" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100" onClick={()=>setHomepage(p.id)}><Home className="mr-1 h-3 w-3" />Set as Home</Button>
+                  )}
                   <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive" onClick={()=>delPage(p.id,p.title)}><Trash2 className="h-3 w-3" /></Button>
                 </div>
               ))}

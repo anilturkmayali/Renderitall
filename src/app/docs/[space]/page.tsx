@@ -34,12 +34,22 @@ export default async function DocsHomePage({
 
   const sections = await getCachedSidebar(space.id);
 
-  // Get first page — if it has content, render it as the landing page (GitBook behavior)
-  const firstPage = await prisma.page.findFirst({
-    where: { spaceId: space.id, status: "PUBLISHED" },
-    orderBy: { position: "asc" },
-    select: { slug: true, title: true, content: true },
-  });
+  // Get homepage: user-selected (space.icon stores homepage page ID) or first page
+  let homePage = null;
+  if (space.icon) {
+    homePage = await prisma.page.findFirst({
+      where: { id: space.icon, status: "PUBLISHED" },
+      select: { slug: true, title: true, content: true },
+    });
+  }
+  if (!homePage) {
+    homePage = await prisma.page.findFirst({
+      where: { spaceId: space.id, status: "PUBLISHED" },
+      orderBy: { position: "asc" },
+      select: { slug: true, title: true, content: true },
+    });
+  }
+  const firstPage = homePage;
 
   if (firstPage?.content) {
     const { MarkdownRenderer } = await import(

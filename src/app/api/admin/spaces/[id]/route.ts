@@ -55,6 +55,7 @@ export async function PUT(
       headerLayout: body.headerLayout,
       seoTitle: body.seoTitle,
       seoDescription: body.seoDescription,
+      icon: body.icon,
     },
   });
 
