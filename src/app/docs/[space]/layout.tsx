@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SearchCommand } from "@/components/search-command";
 import { PageTracker } from "@/components/reader/page-tracker";
+import { PdfButton } from "@/components/reader/pdf-button";
 import { unstable_cache } from "next/cache";
 import type { Metadata } from "next";
 
@@ -156,7 +157,12 @@ export default async function DocsLayout({ children, params }: LayoutProps) {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {space?.robotsIndex !== false && (
+              <div className={useColoredHeader ? "[&_button]:text-white/70 [&_button]:border-white/20 [&_button:hover]:text-white [&_button:hover]:bg-white/10" : ""}>
+                <PdfButton />
+              </div>
+            )}
             <div className={useColoredHeader ? "[&_button]:text-white/80 [&_button]:border-white/20 [&_button]:bg-white/10 [&_button:hover]:bg-white/20" : ""}>
               <SearchCommand spaceSlug={spaceSlug} />
             </div>
