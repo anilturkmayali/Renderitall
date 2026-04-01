@@ -8,7 +8,7 @@ import {
   FolderOpen, FileText, Search, RefreshCw, GripVertical, ChevronUp,
   ChevronDown, FolderGit2, Lock, Star, X, ExternalLink, PenTool,
   Eye, Palette, Settings, Globe, CornerDownRight, CornerUpLeft,
-  Link2, Upload, ImageIcon, Monitor, Smartphone, Tablet, Home,
+  Link2, Upload, ImageIcon, Monitor, Smartphone, Tablet, Home, CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -860,17 +860,61 @@ export default function SiteDetailPage() {
             <Button onClick={saveSettings} disabled={settingsSaving}>{settingsSaved?<><Check className="mr-2 h-4 w-4" />Saved!</>:<><Save className="mr-2 h-4 w-4" />Save</>}</Button>
           </CardContent></Card>
 
-          <Card><CardHeader><CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />Custom Domain</CardTitle></CardHeader><CardContent className="space-y-3">
-            {space.customDomain ? (
-              <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-3">
-                <div><p className="font-medium text-sm">{space.customDomain}</p><p className="text-xs text-muted-foreground">Active</p></div>
-                <Button variant="ghost" size="sm" onClick={rmDomain} className="text-muted-foreground hover:text-destructive"><Trash2 className="mr-1.5 h-3.5 w-3.5" />Remove</Button>
-              </div>
-            ) : (
-              <div className="flex gap-2"><Input placeholder="docs.yourdomain.com" value={domainInput} onChange={e=>setDomainInput(e.target.value)} /><Button onClick={addDomain} disabled={domainAdding||!domainInput.trim()}>{domainAdding?<Loader2 className="mr-2 h-4 w-4 animate-spin" />:<Globe className="mr-2 h-4 w-4" />}Add</Button></div>
-            )}
-            {domainInstr && <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 p-3 text-sm"><p className="font-medium mb-1">{domainInstr.message}</p><div className="font-mono text-xs bg-background rounded border p-2"><div>Type: <strong>{domainInstr.type}</strong></div><div>Name: <strong>{domainInstr.name}</strong></div><div>Value: <strong>{domainInstr.value}</strong></div></div></div>}
-          </CardContent></Card>
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5" />Custom Domain</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">Use your own domain or subdomain for this documentation site (e.g., docs.yourcompany.com).</p>
+
+              {space.customDomain ? (
+                <>
+                  <div className="flex items-center justify-between rounded-lg border bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-900 p-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <p className="font-semibold text-sm">{space.customDomain}</p>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Your site is accessible at <a href={`https://${space.customDomain}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">https://{space.customDomain}</a></p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={rmDomain} className="text-muted-foreground hover:text-destructive"><Trash2 className="mr-1.5 h-3.5 w-3.5" />Remove</Button>
+                  </div>
+                  {domainInstr && (
+                    <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900 p-4">
+                      <p className="font-medium text-sm mb-2">DNS Configuration Required</p>
+                      <p className="text-xs text-muted-foreground mb-3">Add this DNS record at your domain provider:</p>
+                      <div className="font-mono text-xs bg-background rounded-lg border p-3 space-y-1">
+                        <div className="flex gap-4"><span className="text-muted-foreground w-12">Type</span><strong>{domainInstr.type}</strong></div>
+                        <div className="flex gap-4"><span className="text-muted-foreground w-12">Name</span><strong>{domainInstr.name}</strong></div>
+                        <div className="flex gap-4"><span className="text-muted-foreground w-12">Value</span><strong>{domainInstr.value}</strong></div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-3">DNS changes can take up to 48 hours to propagate. SSL is provisioned automatically.</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <Input placeholder="docs.yourcompany.com" value={domainInput} onChange={e=>setDomainInput(e.target.value)} className="flex-1" />
+                    <Button onClick={addDomain} disabled={domainAdding||!domainInput.trim()}>
+                      {domainAdding?<Loader2 className="mr-2 h-4 w-4 animate-spin" />:<Globe className="mr-2 h-4 w-4" />}
+                      Add Domain
+                    </Button>
+                  </div>
+
+                  <div className="rounded-lg border bg-muted/30 p-4">
+                    <p className="text-sm font-medium mb-2">How it works</p>
+                    <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
+                      <li>Enter your domain or subdomain above and click Add Domain</li>
+                      <li>Add a CNAME record at your DNS provider pointing to <code className="bg-muted px-1 py-0.5 rounded text-[11px]">cname.vercel-dns.com</code></li>
+                      <li>Wait for DNS propagation (usually minutes, can take up to 48 hours)</li>
+                      <li>SSL certificate is provisioned automatically</li>
+                      <li>Your documentation site will be accessible at your custom domain</li>
+                    </ol>
+                    <p className="text-xs text-muted-foreground mt-3"><strong>Note:</strong> If you&apos;re using a subdomain (e.g., docs.example.com), set the CNAME for &quot;docs&quot;. For a root domain (example.com), you may need an A record instead — check your DNS provider&apos;s documentation.</p>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
 
           <Card><CardHeader><CardTitle>SEO</CardTitle></CardHeader><CardContent className="space-y-4">
             <div><label className="text-sm font-medium mb-1.5 block">SEO Title</label><Input value={settings.seoTitle} onChange={e=>setSettings({...settings,seoTitle:e.target.value})} placeholder={settings.name} /></div>
