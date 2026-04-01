@@ -62,6 +62,13 @@ export async function POST(req: NextRequest) {
     targetOrgId = defaultOrg.id;
   }
 
+  // Get corporate font from org settings to use as default
+  const org = await prisma.organisation.findUnique({
+    where: { id: targetOrgId },
+    select: { favicon: true },
+  });
+  const corporateFont = org?.favicon || null;
+
   const space = await prisma.space.create({
     data: {
       orgId: targetOrgId,
@@ -70,6 +77,7 @@ export async function POST(req: NextRequest) {
       description: description || null,
       isPublic: isPublic !== false,
       headerLayout: headerLayout || "default",
+      analyticsId: corporateFont, // analyticsId stores the font name
     },
   });
 

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AVAILABLE_FONTS } from "@/lib/fonts";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -821,16 +822,17 @@ export default function SiteDetailPage() {
           <Card>
             <CardHeader className="py-3"><CardTitle className="text-base">Font</CardTitle></CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground mb-3">Choose a Google Font for your documentation site. Leave empty for the default system font.</p>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {["", "Inter", "Roboto", "Open Sans", "Lato", "Poppins", "Nunito", "Merriweather", "Source Sans 3", "IBM Plex Sans", "DM Sans"].map((f) => (
+              <p className="text-xs text-muted-foreground mb-3">Choose a font for your documentation site. The corporate font set in Settings is used as default for new sites.</p>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mb-3">
+                {AVAILABLE_FONTS.map((f) => (
                   <button
-                    key={f}
-                    onClick={() => setForm({...form, font: f})}
-                    className={`rounded-md border px-3 py-2 text-sm transition-all ${form.font === f ? "border-primary bg-primary/5 text-primary" : "hover:bg-muted"}`}
-                    style={f ? { fontFamily: `"${f}", sans-serif` } : undefined}
+                    key={f.name}
+                    onClick={() => setForm({...form, font: f.name})}
+                    className={`rounded-lg border-2 px-3 py-2.5 text-left transition-all ${form.font === f.name ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border hover:border-primary/40"}`}
+                    style={f.name ? { fontFamily: f.type === "system" ? `"${f.name}", sans-serif` : `"${f.name}", sans-serif` } : undefined}
                   >
-                    {f || "System Default"}
+                    <span className="text-sm font-medium block truncate">{f.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{f.type === "system" ? "System" : "Google"}</span>
                   </button>
                 ))}
               </div>

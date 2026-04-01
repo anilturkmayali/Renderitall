@@ -62,15 +62,23 @@ export default async function DocsLayout({ children, params }: LayoutProps) {
   const topLinks: { label: string; url: string }[] = Array.isArray(space?.footerLinks) ? (space.footerLinks as any[]) : [];
 
   const useColoredHeader = !!accentColor;
-  const font = space?.analyticsId || ""; // analyticsId stores font name
+  const fontName = space?.analyticsId || "";
+
+  // Determine if we need Google Fonts or it's a system font
+  const isGoogleFont = fontName && !["Segoe UI", "Aptos"].includes(fontName);
+  const fontFamily = fontName
+    ? ["Segoe UI", "Aptos"].includes(fontName)
+      ? `"${fontName}", -apple-system, BlinkMacSystemFont, sans-serif`
+      : `"${fontName}", sans-serif`
+    : undefined;
 
   return (
-    <div className="min-h-screen bg-background" style={font ? { fontFamily: `"${font}", sans-serif` } : undefined}>
+    <div className="min-h-screen bg-background" style={fontFamily ? { fontFamily } : undefined}>
       {/* Google Font */}
-      {font && (
+      {isGoogleFont && (
         <link
           rel="stylesheet"
-          href={`https://fonts.googleapis.com/css2?family=${encodeURIComponent(font)}:wght@300;400;500;600;700&display=swap`}
+          href={`https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontName)}:wght@300;400;500;600;700&display=swap`}
         />
       )}
 
